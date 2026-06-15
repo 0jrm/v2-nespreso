@@ -12,6 +12,18 @@ from nespreso.io.download.copernicus import download_ostia_sst, download_sss_ran
 from nespreso.runner import run_training
 
 
+def _add_common_bbox(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--min-lon", type=float, required=True)
+    parser.add_argument("--max-lon", type=float, required=True)
+    parser.add_argument("--min-lat", type=float, required=True)
+    parser.add_argument("--max-lat", type=float, required=True)
+
+
+def _add_date_range(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--start", required=True, help="YYYY-MM-DD")
+    parser.add_argument("--end", required=True, help="YYYY-MM-DD")
+
+
 def _add_download_subparser(subparsers: argparse._SubParsersAction) -> None:
     dl = subparsers.add_parser("download", help="Download satellite products with date/bbox filters")
     dl_sub = dl.add_subparsers(dest="product", required=True)
@@ -20,28 +32,17 @@ def _add_download_subparser(subparsers: argparse._SubParsersAction) -> None:
     aviso.add_argument("--output", required=True)
     aviso.add_argument("--start-year", type=int, required=True)
     aviso.add_argument("--end-year", type=int, required=True)
-    aviso.add_argument("--min-lon", type=float, required=True)
-    aviso.add_argument("--max-lon", type=float, required=True)
-    aviso.add_argument("--min-lat", type=float, required=True)
-    aviso.add_argument("--max-lat", type=float, required=True)
+    _add_common_bbox(aviso)
 
     ostia = dl_sub.add_parser("ostia", help="OSTIA SST via copernicusmarine (OISST replacement)")
     ostia.add_argument("--output", required=True)
-    ostia.add_argument("--start", required=True, help="YYYY-MM-DD")
-    ostia.add_argument("--end", required=True, help="YYYY-MM-DD")
-    ostia.add_argument("--min-lon", type=float, required=True)
-    ostia.add_argument("--max-lon", type=float, required=True)
-    ostia.add_argument("--min-lat", type=float, required=True)
-    ostia.add_argument("--max-lat", type=float, required=True)
+    _add_date_range(ostia)
+    _add_common_bbox(ostia)
 
     sss = dl_sub.add_parser("sss", help="SSS via copernicusmarine day loop")
     sss.add_argument("--output", required=True)
-    sss.add_argument("--start", required=True, help="YYYY-MM-DD")
-    sss.add_argument("--end", required=True, help="YYYY-MM-DD")
-    sss.add_argument("--min-lon", type=float, required=True)
-    sss.add_argument("--max-lon", type=float, required=True)
-    sss.add_argument("--min-lat", type=float, required=True)
-    sss.add_argument("--max-lat", type=float, required=True)
+    _add_date_range(sss)
+    _add_common_bbox(sss)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,10 +65,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     _add_download_subparser(subparsers)
     return parser
-
-
-def _parse_date(value: str) -> datetime:
-    return datetime.strptime(value, "%Y-%m-%d")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -98,8 +95,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.product == "ostia":
             download_ostia_sst(
                 args.output,
-                _parse_date(args.start),
-                _parse_date(args.end),
+                datetime.fromisoformat(args.start),
+                datetime.fromisoformat(args.end),
                 args.min_lon,
                 args.max_lon,
                 args.min_lat,
@@ -108,8 +105,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.product == "sss":
             download_sss_range(
                 args.output,
-                _parse_date(args.start),
-                _parse_date(args.end),
+                datetime.fromisoformat(args.start),
+                datetime.fromisoformat(args.end),
                 args.min_lon,
                 args.max_lon,
                 args.min_lat,
