@@ -32,6 +32,7 @@ Branch:
 | `glider_mission.py` | `run_glider_mission` — four glider crossings + AVISO overlay maps |
 | `validation_maps.py` | `run_validation_maps` — binned RMSE/bias maps, seasonal depth curves, comparison maps |
 | `steric_depth_stats.py` | `run_steric_depth_stats` — steric-height / ISOP depth-bin T/S std pcolormesh (full + August) |
+| `monthly_distribution.py` | `run_monthly_distribution` — train/val/test profiles-per-month stacked bar chart |
 | `common.py` | `build_experiment_parser`, `load_cfg_and_artifacts`, matplotlib setup |
 
 ### Runnable scripts (`experiments/`)
@@ -42,8 +43,9 @@ Branch:
 - `experiments/glider_mission.py`
 - `experiments/validation_maps.py`
 - `experiments/steric_depth_stats.py`
+- `experiments/monthly_distribution.py`
 
-Monolith `__main__` delegates to `build_validation_context` + the experiment runners above. Depth-interval tables and monthly distribution remain inline until peeled.
+Monolith `__main__` delegates to `build_validation_context` + the experiment runners above. Depth-interval metric table remains inline until peeled.
 
 ### Pin tests added
 
@@ -75,7 +77,7 @@ srun --ntasks=1 --cpus-per-task=8 --gres=gpu:1 \
 Remaining inline `__main__` blocks to peel per `phase8.txt`:
 
 1. `experiments/compare_legacy_nespreso.py` — timing / ensemble / legacy 1.0 load (now in `validation_context`; may split)
-2. `experiments/monthly_distribution.py` — train/val/test profiles-per-month bar chart
+2. Depth-interval metrics print loop (inline in monolith `__main__`; candidate for `experiments/depth_interval_stats.py`)
 
 Then Phase 9: dead-code pass, `ARCHITECTURE.md`, monolith retirement.
 

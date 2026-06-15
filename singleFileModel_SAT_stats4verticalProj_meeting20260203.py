@@ -48,11 +48,11 @@ from nespreso.io.satellite import load_satellite_data, load_satellite_data_for_d
 from nespreso.io.argo import load_argo_mat
 from nespreso.metrics import bias, mad, rmse
 from nespreso.utils.time import datenum_to_datetime, datenums_to_datetimes, get_month, get_season, matlab2datetime
-from nespreso.analysis.monthly import count_profiles_per_month
 from nespreso.reporting import print_training_params
 from nespreso.experiments.validation_context import build_validation_context
 from nespreso.experiments.pca_regression import run_pca_regression_baseline
 from nespreso.experiments.glider_mission import run_glider_mission
+from nespreso.experiments.monthly_distribution import run_monthly_distribution
 from nespreso.experiments.density_stability import run_density_stability
 from nespreso.experiments.validation_maps import run_validation_maps
 from nespreso.experiments.steric_depth_stats import run_steric_depth_stats
@@ -584,52 +584,4 @@ if __name__ == "__main__":
 
     ## Reviews
 
-    # Make a bar plot showing how many profiles are in the training, validation and test datasets per month
-
-    train_counts = count_profiles_per_month(train_dataset.dataset, train_indices)
-    val_counts = count_profiles_per_month(val_dataset.dataset, val_indices)
-    test_counts = count_profiles_per_month(test_dataset.dataset, test_indices)
-
-    # Combine all dates and get unique months
-    all_months = sorted(set(train_counts.index) | set(val_counts.index) | set(test_counts.index))
-
-    # Combine all counts into a single DataFrame
-    df = pd.DataFrame({"Train": train_counts, "Validation": val_counts, "Test": test_counts})
-
-    # Calculate the total number of profiles for each month
-    df_total = df.sum(axis=1)
-    # Calculate the percentage for each dataset
-    df_percentage = df.div(df_total, axis=0) * 100
-
-    # Update the index to display month abbreviations
-    df_percentage.index = [calendar.month_abbr[i] for i in df_percentage.index]
-
-    # Plot
-    ax = df_percentage.plot(kind="bar", stacked=True, figsize=(15, 6), width=0.8)
-    plt.title("Profiles per Month")
-    plt.xlabel("Month")
-    plt.ylabel("%")
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), fancybox=True, shadow=True, ncols=3)
-
-    # Rotate x-axis labels
-    plt.xticks(rotation=45, ha="right")
-
-    # Add total number labels on top of each bar
-    for i, total in enumerate(df_total):
-        ax.text(
-            i,
-            0,
-            f"Total:\n{total:,.0f}",
-            ha="center",
-            va="bottom",
-        )
-
-    # Add percentage labels on each bar segment
-    for container in ax.containers:
-        ax.bar_label(container, fmt="%.1f%%", label_type="center")
-
-    # Set y-axis to show percentages from 0 to 100
-    plt.ylim(0, 100)  # Increase to 105 to accommodate total labels?
-
-    plt.tight_layout()
-    plt.show()
+    run_monthly_distribution(ctx)

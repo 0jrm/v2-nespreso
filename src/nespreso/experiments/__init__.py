@@ -7,6 +7,7 @@ from nespreso.experiments.common import (
 )
 from nespreso.experiments.density_stability import run_density_stability
 from nespreso.experiments.glider_mission import run_glider_mission
+from nespreso.experiments.monthly_distribution import run_monthly_distribution
 from nespreso.experiments.pca_regression import run_pca_regression_baseline
 from nespreso.experiments.steric_depth_stats import run_steric_depth_stats
 from nespreso.experiments.validation_context import ValidationContext, build_validation_context
@@ -20,6 +21,7 @@ __all__ = [
     "load_cfg_and_artifacts",
     "run_density_stability",
     "run_glider_mission",
+    "run_monthly_distribution",
     "run_pca_regression_baseline",
     "run_steric_depth_stats",
     "run_validation_maps",
