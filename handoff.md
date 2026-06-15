@@ -82,6 +82,8 @@ Full monolith snapshot (pre-removal): `legacy/monolith/singleFileModel_SAT_stats
 
 **Deferred (post–Phase 9, optional):**
 
+See `docs/POST_ALPHA_REVIEW.md` for actionable commands and sign-off checklists.
+
 1. Phase B re-save dataset pickle (`docs/PICKLE_MIGRATION.md`).
 2. Split config vs dataset artifact (`docs/CONFIG_DATASET.md`).
 3. Remove repo-root deprecation shim once callers migrate to `experiments/run_all.py`.
