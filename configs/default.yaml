@@ -9,7 +9,7 @@ paths:
   density_checkpoint: /unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt
   density_stats: /unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz
   isop_nc: /unity/g2/jmiranda/SubsurfaceFields/Data/ISOP1_rmse_bias_1deg_maps.nc
-  trained_model_path: "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models/ocp_model_Test Loss: 0.9163_2025-11-16 10:03:45_sat.pth"
+  trained_model_path: null
 
 bbox:
   min_lat: 18.0

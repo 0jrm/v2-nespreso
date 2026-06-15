@@ -42,10 +42,7 @@ class PathsConfig:
     density_checkpoint: str = "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt"
     density_stats: str = "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz"
     isop_nc: str = "/unity/g2/jmiranda/SubsurfaceFields/Data/ISOP1_rmse_bias_1deg_maps.nc"
-    trained_model_path: str = (
-        "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models/"
-        "ocp_model_Test Loss: 0.9163_2025-11-16 10:03:45_sat.pth"
-    )
+    trained_model_path: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PathsConfig:
@@ -53,6 +50,8 @@ class PathsConfig:
         fields = {}
         for name in cls.__dataclass_fields__:
             val = data.get(name, getattr(defaults, name))
+            if name == "trained_model_path":
+                val = None if val in (None, "") else val
             fields[name] = _env_override(f"paths.{name}", val)
         return cls(**fields)
 

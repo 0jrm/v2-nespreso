@@ -18,6 +18,22 @@ from nespreso.config import AppConfig
 from nespreso.determinism import get_device, set_seed
 
 
+def require_trained_model_path(cfg: AppConfig) -> str:
+    """Return an existing checkpoint path when ``load_trained_model`` is enabled."""
+    path = cfg.paths.trained_model_path
+    if not path:
+        raise ValueError(
+            "runtime.load_trained_model is true but paths.trained_model_path is not set. "
+            "Provide an explicit checkpoint path in the config."
+        )
+    resolved = Path(path)
+    if not resolved.exists():
+        raise FileNotFoundError(
+            f"runtime.load_trained_model is true but checkpoint not found: {path}"
+        )
+    return str(resolved)
+
+
 def _load_monolith():
     """Import the research monolith from the repo root."""
     root = Path(__file__).resolve().parents[2]
@@ -167,7 +183,8 @@ def run_training(cfg: AppConfig) -> Path | None:
     save_model_path: Path | None = None
 
     if cfg.runtime.load_trained_model:
-        checkpoint = torch.load(cfg.paths.trained_model_path, map_location=device, weights_only=False)
+        trained_model_path = require_trained_model_path(cfg)
+        checkpoint = torch.load(trained_model_path, map_location=device, weights_only=False)
         trained_model = m.PredictionModel(
             input_dim=input_dim,
             layers_config=list(model_cfg.layers_config),
@@ -178,7 +195,7 @@ def run_training(cfg: AppConfig) -> Path | None:
         trained_model.to(device)
         full_dataset.pca_temp = checkpoint["pca_temp"]
         full_dataset.pca_sal = checkpoint["pca_sal"]
-        print(f"Using loaded model from: {cfg.paths.trained_model_path}")
+        print(f"Using loaded model from: {trained_model_path}")
     else:
         for run in range(cfg.runtime.n_runs):
             print(f"Run {run + 1}/{cfg.runtime.n_runs}")
