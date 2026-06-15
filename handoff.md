@@ -1,4 +1,4 @@
-# NeSPReSO Refactor Handoff — Continue from Phase 6 extraction
+# NeSPReSO Refactor Handoff — Continue from Phase 7 extraction
 
 We are refactoring the NeSPReSO monolith:
 
@@ -15,11 +15,36 @@ Branch:
 Recent commits:
 
 ```text
-daf4286 refactor(models): extract PredictionModel, density surrogate, and loss stack
-a251415 test(models): pin CombinedPCALoss and PredictionModel forward passes
+af40a31 refactor(viz): extract profile and map plotting helpers from monolith
+e25b137 test(viz): pin monolith plotting helpers with Agg backend goldens
+6c5419d docs: update handoff for Phase 5 and Phase 6 completion
 ```
 
-## Phase 6 — complete (uncommitted)
+## Phase 7 — in progress (profiles + maps extracted)
+
+Per `phase7.txt` (profiles/maps portion; `fields.py` deferred):
+
+| Module | Path | Contents |
+|---|---|---|
+| Profiles | `src/nespreso/viz/profiles.py` | `visualize_combined_results`, `filter_by_season`, `seasonal_plots`, `calculate_bias` |
+| Maps | `src/nespreso/viz/maps.py` | `calculate_average_in_bin`, `plot_bin_map`, `plot_rmse_on_ax`, `plot_comparison_maps`, `plot_residual_profiles_for_top_bins` |
+
+Monolith re-exports all symbols. `plt.show` / file writes remain at rendering edges.
+
+### Pin tests added
+
+- `tests/test_viz.py` — synthetic golden pins for bin statistics, bias helpers, and Agg-backend figure artifacts
+- `tests/golden/viz_maps_synthetic.json`
+- `tests/golden/viz_profiles_synthetic.json`
+- `tests/golden/viz_plot_artifacts.json`
+
+Uses independent seeds per fixture (`100` maps, `101` bias, `102`/`1020`/`103` plots).
+
+### Needs human review
+
+- `calculate_bias` still references module-level `min_depth` / `max_depth` globals (unused `depths` variable preserved verbatim). Pin tests set these on `nespreso.viz.profiles` before calling through the monolith re-export.
+
+## Phase 6 — complete
 
 Per `phase6.txt` (inference portion; `train.py` was already extracted):
 
@@ -82,14 +107,15 @@ Dead nested `inverse_transform` in the main block (~1898) was **removed**.
 - `tests/golden/pca_inverse_profile_0.json`
 - `tests/golden/pca_inverse_api_profile_0.json`
 
-## Verification (Phase 6 extraction)
+## Verification (Phase 7 extraction)
 
 ```bash
 python -m compileall src singleFileModel_SAT_stats4verticalProj_meeting20260203.py
 
 pytest tests/test_smoke.py tests/test_config_paths.py tests/test_prepare_inputs.py \
   tests/test_satellite_loader.py tests/test_argo_loader.py tests/test_splits.py \
-  tests/test_pca_inverse.py tests/test_losses.py tests/test_inference.py -q
+  tests/test_pca_inverse.py tests/test_losses.py tests/test_inference.py \
+  tests/test_viz.py -q
 
 srun --ntasks=1 --cpus-per-task=8 --gres=gpu:1 \
   pytest tests/test_characterization.py tests/test_inference.py \
@@ -98,19 +124,19 @@ srun --ntasks=1 --cpus-per-task=8 --gres=gpu:1 \
 
 Last run: all passed (sklearn unpickle-version warnings only; goldens at `1e-6`).
 
-## Next sprint: Phase 7 — visualization
+## Next sprint: Phase 7 remainder — field plots + `__main__` analysis
 
 High-risk monolith blocks still in `singleFileModel_SAT_stats4verticalProj_meeting20260203.py`:
 
-- `visualize_combined_results` and related plotting helpers
-- Residual/bin plotting functions in the analysis section
-- Most of the `__main__` post-training analysis block
+- `plot_field` / `plot_field_subplot` (glider section; target `src/nespreso/viz/fields.py`)
+- `plot_coefficients_heatmap` (nested in `__main__`)
+- Most of the `__main__` post-training analysis block (orchestration vs library split)
 
 Recommended sequence:
 
-1. Pin any pure numeric transforms used before plotting (if not already covered).
-2. Extract viz modules under `src/nespreso/viz/`.
-3. Keep side effects (``plt.show``, file writes) at module edges.
+1. Pin glider field plot helpers with Agg-backend artifact tests.
+2. Extract `src/nespreso/viz/fields.py`.
+3. Peel `__main__` analysis orchestration toward `experiments/` or `runner` hooks without changing numerics.
 
 ## Prior accepted HEAD (Phase 4)
 
