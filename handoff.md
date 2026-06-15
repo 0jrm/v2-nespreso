@@ -43,11 +43,11 @@ All `phase8.txt` experiment scripts exist under `experiments/` with library modu
 
 Monolith `__main__` is a thin orchestrator: `run_training` → `build_validation_context` → experiment runners. Large commented blocks remain for Phase 9 dead-code review.
 
-## Phase 9 — next (per `phase9.txt`)
+## Phase 9 — in progress (per `phase9.txt`)
 
-1. Dead-code pass on monolith commented blocks (~lines 165–465); list removals under `## Removed - confirm` and wait for sign-off on ambiguous blocks.
-2. Finish type hints / docstrings on public APIs.
-3. Write `ARCHITECTURE.md` (module map, data flow, experiment how-to, domain quirks).
+1. ~~Write `ARCHITECTURE.md`~~ — done (`ARCHITECTURE.md`).
+2. Dead-code pass on monolith commented blocks (~lines 165–465); list removals under `## Removed - confirm` and wait for sign-off on ambiguous blocks.
+3. Finish type hints / docstrings on public APIs.
 4. Confirm monolith can retire (nothing imports it except characterization tests / runner shim).
 
 ## Verification
