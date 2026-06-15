@@ -92,6 +92,10 @@ def apply_runtime_globals(m, cfg: AppConfig) -> None:
     set_seed(cfg.runtime.seed)
     m.DEVICE = get_device()
 
+    from nespreso.data import dataset as dataset_module
+
+    dataset_module.debug = cfg.runtime.debug
+
 
 def _prepare_data_and_loaders(m, cfg: AppConfig) -> dict[str, Any]:
     """Build or load the dataset pickle and train/val/test loaders."""
