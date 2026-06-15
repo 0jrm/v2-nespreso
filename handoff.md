@@ -46,42 +46,46 @@ Monolith `__main__` is a thin orchestrator: `run_training` → `build_validation
 ## Phase 9 — in progress (per `phase9.txt`)
 
 1. ~~Write `ARCHITECTURE.md`~~ — done (`ARCHITECTURE.md`).
-2. ~~Dead-code pass on monolith commented blocks~~ — done (see **Removed — confirm** below).
+2. ~~Dead-code pass on monolith commented blocks~~ — done; archived under `legacy/removed_experiments/`.
 3. Type hints / docstrings on public APIs — in progress (`analysis/*`, `utils/geo.py`, `utils/time.py` annotated; `train.py` / `inference.py` / `config.py` already typed).
-4. Confirm monolith can retire — **not yet** (see **Monolith retirement** below).
+4. ~~Monolith relocated to legacy~~ — forward path is `experiments/run_all.py`; see **Monolith retirement** below.
 
-## Removed — confirm
+## Removed — archived
 
-The following commented `__main__` blocks were deleted from the monolith (previously ~lines 166–467). None were active code paths; all post-training logic they related to is now in `src/nespreso/experiments/` or was never wired into the orchestrator.
+The following commented `__main__` blocks were deleted from the active monolith in
+`2cbb2b1` and preserved under `legacy/removed_experiments/` (verbatim, still commented).
+Active post-training logic is in `src/nespreso/experiments/` and `experiments/*.py`.
 
-| Block | Summary | Disposition |
-|---|---|---|
-| NetCDF validation export | `create_netcdf(...)` writing `Test_dataset.nc` with SST, lat/lon, T/S profiles | **Removed** — one-off export script; not part of experiment pipeline |
-| Missing-date histogram | Bar chart of year-month counts for profiles outside `full_dataset.TIME` | **Removed** — exploratory QA; no library equivalent |
-| KD-tree grid filter | 0.1° grid + `cKDTree` scatter of points within 0.5° of training data | **Removed** — exploratory spatial coverage plot |
-| NPL sound-speed / SLD / BLG | `calculate_sound_speed_NPL`, sonic-layer depth, below-layer gradient | **Removed** — standalone acoustics experiment; references undefined `temperature_profile` / `MLD_index` in commented context |
-| Nature-run SSH histogram | Compare training AVISO SSH vs NatureRun `.mat` `ssh10` distributions | **Removed** — eddy/nature-run side experiment; hardcoded `/unity/.../NatureRun/` |
-| Nature-run T-S by SSH bin | `plot_ts_profiles`, `aggregate_from_mat`, SSH-range T/S diagrams | **Removed** — same nature-run side experiment; needs `sigma_theta` / `cores` not in scope |
+| Block | Archive file |
+|---|---|
+| NetCDF validation export | `01_netcdf_validation_export.py` |
+| Missing-date histogram | `02_missing_date_histogram.py` |
+| KD-tree grid filter | `03_kdtree_grid_filter.py` |
+| NPL sound-speed / SLD / BLG | `04_npl_sound_speed.py` |
+| Nature-run SSH histogram | `05_nature_run_ssh_histogram.py` |
+| Nature-run T-S by SSH bin | `06_nature_run_ts_by_ssh_bin.py` |
 
-**Please confirm** if any of the above should be revived as a standalone script under `experiments/` before the monolith file is deleted.
+Full monolith snapshot (pre-removal): `legacy/monolith/singleFileModel_SAT_stats4verticalProj_meeting20260203.py`.
 
 ## Monolith retirement
 
-The monolith (~130 lines) is now a **re-export shim** plus `__main__` orchestrator.
+| Artifact | Role |
+|---|---|
+| `legacy/monolith/singleFileModel_SAT_stats4verticalProj_meeting20260203.py` | Frozen relic (470 lines, pre–Phase 9 dead-code cut); not imported |
+| `singleFileModel_SAT_stats4verticalProj_meeting20260203.py` (repo root) | Deprecation shim → `experiments/run_all.py` |
+| `experiments/run_all.py` | **Forward** full pipeline (train + all experiments) |
 
 | Consumer | Status |
 |---|---|
-| `runner.run_training` | **Decoupled** — uses `nespreso.*` imports and `pickle_compat.load_dataset_pickle` |
-| `glider_mission.py` | **Decoupled** — uses `pickle_compat.load_dataset_pickle` |
-| `tests/monolith_loader.py` + golden-pin tests | Still load monolith for namespace parity checks |
-| Dataset pickle on disk | Still stores `__main__.TemperatureSalinityDataset`; compat unpickler remaps (see `docs/PICKLE_MIGRATION.md`) |
+| `runner.run_training` | Package-only (`pickle_compat`) |
+| Golden / characterization tests | Package-only (`565069c`) |
+| Dataset pickle on disk | `__main__.TemperatureSalinityDataset`; `pickle_compat` remaps |
 
-**Retirement steps (remaining):**
+**Remaining (optional):**
 
-1. ~~Point `runner.py` at package imports~~ — done.
-2. Optional: re-save dataset pickle with `resave_dataset_pickle` (Phase B in `docs/PICKLE_MIGRATION.md`).
-3. Migrate characterization tests off `tests/monolith_loader.py` where only used for pickle load.
-4. Delete monolith file after steps 2–3 pass HPC goldens.
+1. Phase B re-save dataset pickle (`docs/PICKLE_MIGRATION.md`).
+2. Split config vs dataset artifact (`docs/CONFIG_DATASET.md`).
+3. Remove repo-root deprecation shim once callers migrate to `experiments/run_all.py`.
 
 ## Verification
 
@@ -105,7 +109,7 @@ srun --ntasks=1 --cpus-per-task=8 --gres=gpu:1 \
 - **ISOP comparison maps**: `avg_rmse_isop_*` restored in `run_validation_maps` from `ctx.data_ISOP`.
 - **Glider satellite cache**: `run_glider_mission` loads dataset pickle before `sss1` cache branch.
 - **`lon_val` binning**: `lon_val = np.floor(lon_val) + bin_size / 2` (preserved verbatim).
-- **Removed monolith blocks** (table above): confirm no revival needed before final monolith delete.
+- **Removed monolith blocks**: archived under `legacy/removed_experiments/`; revive via `experiments/` if needed.
 
 ## Rules reminder
 

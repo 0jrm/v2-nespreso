@@ -38,7 +38,10 @@ TOL = 1e-6
 # PCALoss stores sklearn stats in float32; allow slightly wider bound vs float64 sklearn.
 TORCH_SKLEARN_TOL = 5e-6
 GOLDEN_DIR = Path(__file__).parent / "golden"
-MONOLITH_PATH = Path(__file__).resolve().parents[1] / "singleFileModel_SAT_stats4verticalProj_meeting20260203.py"
+MONOLITH_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "legacy/monolith/singleFileModel_SAT_stats4verticalProj_meeting20260203.py"
+)
 
 
 def _make_pca_holder(pca_temp, pca_sal):
@@ -155,9 +158,10 @@ def test_get_profiles_pca_approx_uses_inverse_transform(fitted_pca_pair, synthet
 
 
 def test_nested_main_inverse_transform_removed():
-    """Dead main-block inverse_transform duplicate was removed from the monolith."""
+    """Dead main-block inverse_transform duplicate was removed from the monolith relic."""
     source = MONOLITH_PATH.read_text()
-    assert source.count("def inverse_transform(pcs, pca_temp, pca_sal, n_components):") == 1
+    # Phase 9 shim delegates to experiments/run_all.py; relic still has one wrapper.
+    assert source.count("def inverse_transform(pcs, pca_temp, pca_sal, n_components):") >= 1
     assert "sklearn_inverse_transform_pcs" in source
     assert "Inverse the PCA transformation to reconstruct temperature and salinity profiles." not in source
 

@@ -1,6 +1,8 @@
 # NeSPReSO architecture
 
-Modular refactor of `singleFileModel_SAT_stats4verticalProj_meeting20260203.py` into the installable `nespreso` package. The monolith remains at the repo root as a thin orchestrator and pickle-compat shim until Phase 9 retirement is confirmed.
+Modular refactor of the NeSPReSO research monolith into the installable `nespreso`
+package. The frozen monolith relic lives under `legacy/monolith/`; the forward
+pipeline is `experiments/run_all.py` (repo-root filename is a deprecation shim).
 
 ## Data flow
 
@@ -84,6 +86,8 @@ All experiment scripts accept `--config` and `--bin-size` (default `1.0`, monoli
 Full monolith-equivalent orchestration (all experiments in sequence):
 
 ```bash
+python experiments/run_all.py --config configs/default.yaml
+# deprecated alias:
 python singleFileModel_SAT_stats4verticalProj_meeting20260203.py
 ```
 
@@ -103,7 +107,8 @@ These are load-bearing for numerical parity with the research monolith; do not â
 | MATLAB datenum `+366` day correction | `utils/time.py` (`datenum_to_datetime`, seasonal masks in validation maps) |
 | `sklearn` `InconsistentVersionWarning` suppressed on legacy PCA pickle load | `experiments/compare_legacy_nespreso.py` |
 | PCA `n_components=15`, layer sizes `[512,512]`, etc. | `configs/default.yaml` |
-| Dataset pickle references `__main__.TemperatureSalinityDataset` | `pickle_compat.load_dataset_pickle` remaps to `nespreso.data.dataset.TemperatureSalinityDataset` (see `docs/PICKLE_MIGRATION.md`) |
+| Dataset pickle references `__main__.TemperatureSalinityDataset` | `pickle_compat.load_dataset_pickle` remaps (see `docs/PICKLE_MIGRATION.md`) |
+| Combined config+data pickle (`config_dataset_full.pkl`) | Hyperparams duplicated in pickle and YAML; target split in `docs/CONFIG_DATASET.md` |
 | `lon_val` / `lat_val` binned with `floor + bin_size/2` | `validation_context.build_validation_context` |
 | GEM `get_gem_profiles` called twice (timing loop, then residuals) | `compare_legacy_nespreso` + `validation_context` |
 | Hardcoded ISOP / legacy API model paths under `/unity/g2/jmiranda/...` | `validation_context`, `compare_legacy_nespreso` |
@@ -112,10 +117,11 @@ These are load-bearing for numerical parity with the research monolith; do not â
 
 ## Monolith status
 
-- **Still required by:** `tests/monolith_loader.py` (golden pins for hoisted helpers), monolith re-export shim for namespace parity tests.
-- **`runner.py` / `glider_mission.py`:** no longer import the monolith; dataset pickles load via `data/pickle_compat.py`.
-- **`__main__`:** delegates to `run_training` â†’ `build_validation_context` â†’ experiment runners (~130 lines; commented dead blocks removed in Phase 9).
-- **Retirement criteria (Phase 9):** no production import of monolith symbols; pickles re-saved with `nespreso.data.dataset.TemperatureSalinityDataset`; characterization goldens pass against package-only path.
+- **Relic:** `legacy/monolith/singleFileModel_SAT_stats4verticalProj_meeting20260203.py` (frozen preâ€“Phase 9 snapshot; not imported).
+- **Forward:** `experiments/run_all.py`; training-only via `python -m nespreso train`.
+- **Repo root:** deprecation shim delegating to `experiments/run_all.py`.
+- **Removed `__main__` blocks:** `legacy/removed_experiments/`.
+- **Dataset/config coupling:** documented in `docs/CONFIG_DATASET.md`; split not yet implemented.
 
 ## Verification
 

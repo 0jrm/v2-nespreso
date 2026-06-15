@@ -102,6 +102,21 @@ Execute the existing [phase1.txt](phase1.txt)-[phase6.txt](phase6.txt) plans unc
 
 Viz split, experiment scripts under `experiments/`, dead-code pass, `ARCHITECTURE.md`. Add `legacy/SOURCES.md` finalization: what was taken from each old folder, what was deliberately left (autoencoder/KAN, transformer sketch, NumPy-lite pipeline) and why.
 
+### Post–Phase 9 — config / dataset separation (planned, not yet implemented)
+
+The GoM default couples training hyperparameters and the materialized dataset in one
+pickle (`config_dataset_full.pkl`). See `docs/CONFIG_DATASET.md` for the target split:
+
+- **Config** (`configs/default.yaml`) — single source of truth for paths, bbox, model
+  hyperparameters, runtime flags (v1 defaults: `n_components=15`, `[512,512]`, etc.).
+- **Dataset artifact** — `full_dataset` only (future `paths.dataset_artifact`), built
+  once per region/data revision; no duplicate hyperparameter dict in the pickle.
+- **Checkpoints** (`.pth`) — already separate; store `model_state_dict` + PCA.
+
+Implementation is deferred until an approved artifact migration (Phase B re-save or
+split write path in `runner.py`). Until then, load behavior is unchanged: YAML
+overrides hyperparameters on pickle load and calls `reload()` when training.
+
 ## Things to have in mind
 
 - The monolith imports `metrics` from `/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/metrics` via sys.path hack — must be rewritten/packaged in step 1, focusing on correctness and compatibility with torch tensors.
