@@ -1,0 +1,149 @@
+{
+  "seed": 200,
+  "plot_field_temperature": {
+    "naxes": 2,
+    "axes": [
+      {
+        "title": "test temperature field",
+        "xlabel": "Distance (km)",
+        "ylabel": "Depth (index)",
+        "ncollections": 2,
+        "collections": [
+          {
+            "head": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "size": 9
+          },
+          {
+            "head": [
+              18.549051750633744,
+              21.910953133930835,
+              20.711879153557042,
+              19.752261713206508,
+              20.36146623472956,
+              19.967050328863508,
+              19.778653282372662,
+              20.47725677658902
+            ],
+            "size": 120
+          }
+        ],
+        "ncontours": 2
+      },
+      {
+        "title": "",
+        "xlabel": "",
+        "ylabel": "Temperature [T]",
+        "ncollections": 2,
+        "collections": [
+          {
+            "head": [
+              0.078125,
+              0.234375,
+              0.390625,
+              0.546875,
+              0.703125,
+              0.859375,
+              1.015625,
+              1.171875
+            ],
+            "size": 256
+          }
+        ],
+        "ncontours": 2
+      }
+    ]
+  },
+  "plot_field_salinity": {
+    "naxes": 2,
+    "axes": [
+      {
+        "title": "test salinity field",
+        "xlabel": "Distance (km)",
+        "ylabel": "Depth (index)",
+        "ncollections": 2,
+        "collections": [
+          {
+            "head": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "size": 4
+          },
+          {
+            "head": [
+              33.549051750633744,
+              36.91095313393083,
+              35.71187915355704,
+              34.75226171320651,
+              35.36146623472956,
+              34.96705032886351,
+              34.77865328237266,
+              35.477256776589016
+            ],
+            "size": 120
+          }
+        ],
+        "ncontours": 2
+      },
+      {
+        "title": "",
+        "xlabel": "",
+        "ylabel": "Salinity [S]",
+        "ncollections": 2,
+        "collections": [
+          {
+            "head": [
+              34.005859375,
+              34.017578125,
+              34.029296875,
+              34.041015625,
+              34.052734375,
+              34.064453125,
+              34.076171875,
+              34.087890625
+            ],
+            "size": 256
+          }
+        ],
+        "ncontours": 2
+      }
+    ]
+  },
+  "plot_field_subplot_temperature": {
+    "title": "Glider T",
+    "xlabel": "Distance (km)",
+    "ylabel": "Depth [m]",
+    "collection_head": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "plot_field_subplot_t_diff": {
+    "title": "T Difference",
+    "collection_head": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  }
+}
