@@ -19,19 +19,18 @@ from nespreso.analysis.depth_stats import (
 )
 from nespreso.analysis.glider import bin_data, get_glider_predictions
 from nespreso.data.features import prepare_inputs
+from nespreso.data.pickle_compat import load_dataset_pickle
 from nespreso.experiments.validation_context import ValidationContext
 from nespreso.io.satellite import load_satellite_data
 from nespreso.io.satellite_readers import get_aviso_by_date
 from nespreso.metrics import bias, rmse
-from nespreso.runner import _load_dataset_pickle, _load_monolith
 from nespreso.utils.geo import calculate_distances
 from nespreso.utils.time import datenum_to_datetime, datenums_to_datetimes
 from nespreso.viz.fields import plot_field_subplot
 
 
 def _load_dataset_pickle_dict(ctx: ValidationContext) -> dict:
-    monolith = _load_monolith()
-    return _load_dataset_pickle(monolith, ctx.cfg.paths.dataset_pickle)
+    return load_dataset_pickle(ctx.cfg.paths.dataset_pickle)
 
 
 def run_glider_mission(ctx: ValidationContext) -> dict:

@@ -22,9 +22,12 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from nespreso.config import AppConfig, density_penalty_dict, load_config
-from nespreso.determinism import set_seed
-from nespreso.metrics import bias, mad, rmse
-from nespreso.runner import _load_dataset_pickle, apply_runtime_globals
+from nespreso.data.pickle_compat import load_dataset_pickle
+from nespreso.data.splits import split_dataset
+from nespreso.determinism import get_device, set_seed
+from nespreso.losses import CombinedPCALoss
+from nespreso.models.mlp import PredictionModel
+from nespreso.runner import apply_runtime_globals
 from nespreso.train import train_model
 from tests.monolith_loader import load_monolith
 
@@ -36,13 +39,13 @@ GOLDEN_TRAIN_EPOCHS = 5
 def _capture_short_train_trajectory(cfg: AppConfig) -> list[dict[str, float]]:
     """Run a deterministic short training loop for golden characterization."""
     m = load_monolith()
-    apply_runtime_globals(m, cfg)
+    apply_runtime_globals(cfg, m)
 
     model_cfg = cfg.model
     input_params = asdict(cfg.input_params)
     density_penalty_config = density_penalty_dict(cfg)
 
-    data = _load_dataset_pickle(m, cfg.paths.dataset_pickle)
+    data = load_dataset_pickle(cfg.paths.dataset_pickle)
     full_dataset = data["full_dataset"]
     full_dataset.n_components = model_cfg.n_components
     full_dataset.min_depth = model_cfg.min_depth
@@ -50,7 +53,7 @@ def _capture_short_train_trajectory(cfg: AppConfig) -> list[dict[str, float]]:
     full_dataset.input_params = input_params
     full_dataset.reload()
 
-    train_dataset, val_dataset, _test_dataset = m.split_dataset(
+    train_dataset, val_dataset, _test_dataset = split_dataset(
         full_dataset,
         model_cfg.train_size,
         model_cfg.val_size,
@@ -63,10 +66,10 @@ def _capture_short_train_trajectory(cfg: AppConfig) -> list[dict[str, float]]:
     full_dataset.calc_gem(subset_indices)
 
     input_dim = sum(val for val in input_params.values()) - 1 * input_params["sat"]
-    device = m.DEVICE
+    device = get_device()
     weights = full_dataset.get_pca_weights()
 
-    criterion = m.CombinedPCALoss(
+    criterion = CombinedPCALoss(
         temp_pca=train_dataset.dataset,
         sal_pca=train_dataset.dataset,
         n_components=model_cfg.n_components,
@@ -76,7 +79,7 @@ def _capture_short_train_trajectory(cfg: AppConfig) -> list[dict[str, float]]:
     )
 
     set_seed(cfg.runtime.seed)
-    model = m.PredictionModel(
+    model = PredictionModel(
         input_dim=input_dim,
         layers_config=list(model_cfg.layers_config),
         output_dim=model_cfg.n_components * 2,
@@ -118,14 +121,13 @@ def test_dataset_getitem_golden(request):
         pytest.skip("HPC golden tests disabled; pass --run-unity on /unity host")
 
     golden_file = GOLDEN_DIR / "dataset_getitem_0.json"
-    m = load_monolith()
     from nespreso.config import load_config
 
     cfg = load_config()
     if not Path(cfg.paths.dataset_pickle).exists():
         pytest.skip("dataset pickle not present")
 
-    data = _load_dataset_pickle(m, cfg.paths.dataset_pickle)
+    data = load_dataset_pickle(cfg.paths.dataset_pickle)
     ds = data["full_dataset"]
     inputs, labels = ds[0]
     payload = {

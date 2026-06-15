@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import pickle
-import sys
 import time
+import warnings
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +16,13 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from nespreso.config import AppConfig, density_penalty_dict
+from nespreso.data.dataset import TemperatureSalinityDataset
+from nespreso.data.pickle_compat import load_dataset_pickle
+from nespreso.data.splits import split_dataset
 from nespreso.determinism import get_device, set_seed
+from nespreso.losses import CombinedPCALoss
+from nespreso.models.mlp import PredictionModel
+from nespreso.train import evaluate_model, train_model
 
 
 @dataclass(frozen=True)
@@ -53,51 +58,51 @@ def require_trained_model_path(cfg: AppConfig) -> str:
     return str(resolved)
 
 
-def _load_monolith():
-    """Import the research monolith from the repo root."""
-    loader_name = "nespreso_monolith_loader"
-    if loader_name not in sys.modules:
-        loader_path = Path(__file__).resolve().parents[2] / "tests" / "monolith_loader.py"
-        spec = importlib.util.spec_from_file_location(loader_name, loader_path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Cannot load monolith loader from {loader_path}")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[loader_name] = module
-        spec.loader.exec_module(module)
-    return sys.modules[loader_name].load_monolith()
+def _load_dataset_pickle(monolith_module: Any, pickle_path: str | Path) -> dict[str, Any]:
+    """
+    Backward-compatible alias for tests that still pass a monolith module.
+
+    The monolith module is ignored; loading uses ``pickle_compat`` class remapping.
+    """
+    if monolith_module is not None:
+        warnings.warn(
+            "_load_dataset_pickle(monolith, path) is deprecated; monolith_module is ignored. "
+            "Use nespreso.data.pickle_compat.load_dataset_pickle(path).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    return load_dataset_pickle(pickle_path)
 
 
-def _load_dataset_pickle(monolith_module, pickle_path: str | Path):
-    """Unpickle dataset saved when the monolith was run as ``__main__``."""
-    real_main = sys.modules["__main__"]
-    sys.modules["__main__"] = monolith_module
-    try:
-        with open(pickle_path, "rb") as file:
-            return pickle.load(file)
-    finally:
-        sys.modules["__main__"] = real_main
+def apply_runtime_globals(cfg: AppConfig, monolith_module: Any | None = None) -> None:
+    """
+    Mirror runtime flags from config onto package modules.
 
-
-def apply_runtime_globals(m, cfg: AppConfig) -> None:
-    """Mirror module-level flags from config (backward compat for monolith)."""
-    m.load_trained_model = cfg.runtime.load_trained_model
-    m.ensemble_models = cfg.runtime.ensemble_models
-    m.load_dataset_file = cfg.runtime.load_dataset_file
-    m.gen_paula_profiles = cfg.runtime.gen_paula_profiles
-    m.debug = cfg.runtime.debug
-    m.seed = cfg.runtime.seed
-    m.n_runs = cfg.runtime.n_runs
-    m.nn_repeat_time = cfg.runtime.nn_repeat_time
-    m.gem_repeat_time = cfg.runtime.gem_repeat_time
+    When ``monolith_module`` is provided (characterization tests), also sets legacy
+    module-level attributes on the monolith shim for backward compatibility.
+    """
     set_seed(cfg.runtime.seed)
-    m.DEVICE = get_device()
 
     from nespreso.data import dataset as dataset_module
 
     dataset_module.debug = cfg.runtime.debug
 
+    if monolith_module is None:
+        return
 
-def _prepare_data_and_loaders(m, cfg: AppConfig) -> dict[str, Any]:
+    monolith_module.load_trained_model = cfg.runtime.load_trained_model
+    monolith_module.ensemble_models = cfg.runtime.ensemble_models
+    monolith_module.load_dataset_file = cfg.runtime.load_dataset_file
+    monolith_module.gen_paula_profiles = cfg.runtime.gen_paula_profiles
+    monolith_module.debug = cfg.runtime.debug
+    monolith_module.seed = cfg.runtime.seed
+    monolith_module.n_runs = cfg.runtime.n_runs
+    monolith_module.nn_repeat_time = cfg.runtime.nn_repeat_time
+    monolith_module.gem_repeat_time = cfg.runtime.gem_repeat_time
+    monolith_module.DEVICE = get_device()
+
+
+def _prepare_data_and_loaders(cfg: AppConfig) -> dict[str, Any]:
     """Build or load the dataset pickle and train/val/test loaders."""
     model_cfg = cfg.model
     input_params = asdict(cfg.input_params)
@@ -107,7 +112,7 @@ def _prepare_data_and_loaders(m, cfg: AppConfig) -> dict[str, Any]:
     bbox = cfg.bbox
 
     if os.path.exists(dataset_pickle_file) and cfg.runtime.load_dataset_file:
-        data = _load_dataset_pickle(m, dataset_pickle_file)
+        data = load_dataset_pickle(dataset_pickle_file)
         full_dataset = data["full_dataset"]
         full_dataset.n_components = model_cfg.n_components
         full_dataset.min_depth = model_cfg.min_depth
@@ -116,7 +121,7 @@ def _prepare_data_and_loaders(m, cfg: AppConfig) -> dict[str, Any]:
         if not cfg.runtime.load_trained_model:
             full_dataset.reload()
     else:
-        full_dataset = m.TemperatureSalinityDataset(
+        full_dataset = TemperatureSalinityDataset(
             n_components=model_cfg.n_components,
             input_params=input_params,
             min_depth=model_cfg.min_depth,
@@ -154,7 +159,7 @@ def _prepare_data_and_loaders(m, cfg: AppConfig) -> dict[str, Any]:
                 file,
             )
 
-    train_dataset, val_dataset, test_dataset = m.split_dataset(
+    train_dataset, val_dataset, test_dataset = split_dataset(
         full_dataset,
         model_cfg.train_size,
         model_cfg.val_size,
@@ -169,7 +174,7 @@ def _prepare_data_and_loaders(m, cfg: AppConfig) -> dict[str, Any]:
     full_dataset.calc_gem(subset_indices)
 
     input_dim = sum(val for val in input_params.values()) - 1 * input_params["sat"]
-    device = m.DEVICE
+    device = get_device()
     weights = full_dataset.get_pca_weights()
 
     print(
@@ -177,7 +182,7 @@ def _prepare_data_and_loaders(m, cfg: AppConfig) -> dict[str, Any]:
         f"S: {(100 * sum(full_dataset.pca_sal.explained_variance_ratio_)):.1f}%"
     )
 
-    criterion = m.CombinedPCALoss(
+    criterion = CombinedPCALoss(
         temp_pca=train_dataset.dataset,
         sal_pca=train_dataset.dataset,
         n_components=model_cfg.n_components,
@@ -207,13 +212,12 @@ def run_training(cfg: AppConfig, *, return_artifacts: bool = False) -> Path | No
 
     Returns path to saved checkpoint when training; None when loading a trained model.
     When ``return_artifacts`` is true, also returns dataset split and trained model for
-    monolith post-training analysis.
+    post-training analysis experiments.
     """
-    m = _load_monolith()
-    apply_runtime_globals(m, cfg)
+    apply_runtime_globals(cfg)
 
     model_cfg = cfg.model
-    prep = _prepare_data_and_loaders(m, cfg)
+    prep = _prepare_data_and_loaders(cfg)
     full_dataset = prep["full_dataset"]
     train_loader = prep["train_loader"]
     val_loader = prep["val_loader"]
@@ -235,7 +239,7 @@ def run_training(cfg: AppConfig, *, return_artifacts: bool = False) -> Path | No
     if cfg.runtime.load_trained_model:
         trained_model_path = require_trained_model_path(cfg)
         checkpoint = torch.load(trained_model_path, map_location=device, weights_only=False)
-        trained_model = m.PredictionModel(
+        trained_model = PredictionModel(
             input_dim=input_dim,
             layers_config=list(model_cfg.layers_config),
             output_dim=model_cfg.n_components * 2,
@@ -249,7 +253,7 @@ def run_training(cfg: AppConfig, *, return_artifacts: bool = False) -> Path | No
     else:
         for run in range(cfg.runtime.n_runs):
             print(f"Run {run + 1}/{cfg.runtime.n_runs}")
-            model = m.PredictionModel(
+            model = PredictionModel(
                 input_dim=input_dim,
                 layers_config=list(model_cfg.layers_config),
                 output_dim=model_cfg.n_components * 2,
@@ -259,7 +263,7 @@ def run_training(cfg: AppConfig, *, return_artifacts: bool = False) -> Path | No
             optimizer = optim.Adam(model.parameters(), lr=model_cfg.learning_rate)
 
             start_time = time.perf_counter()
-            trained_model = m.train_model(
+            trained_model = train_model(
                 model,
                 train_loader,
                 val_loader,
@@ -273,7 +277,7 @@ def run_training(cfg: AppConfig, *, return_artifacts: bool = False) -> Path | No
             elapsed_time = time.perf_counter() - start_time
             print(f"NeSPReSO 1.1 train: {elapsed_time:.2f} seconds.")
 
-            test_loss = m.evaluate_model(trained_model, test_loader, criterion, device)
+            test_loss = evaluate_model(trained_model, test_loader, criterion, device)
             print(f"Test Loss: {test_loss:.4f}")
 
             suffix = "_sat.pth" if input_params["sat"] else ".pth"

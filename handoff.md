@@ -67,20 +67,21 @@ The following commented `__main__` blocks were deleted from the monolith (previo
 
 ## Monolith retirement
 
-The monolith (~130 lines) is now a **re-export shim** plus `__main__` orchestrator. It cannot be deleted yet:
+The monolith (~130 lines) is now a **re-export shim** plus `__main__` orchestrator.
 
-| Consumer | Why monolith is still needed |
+| Consumer | Status |
 |---|---|
-| `runner.run_training` | Loads monolith for `TemperatureSalinityDataset`, `split_dataset`, losses, `train_model`, and legacy pickle `__main__` class paths |
-| `tests/monolith_loader.py` + characterization tests | Golden pins compare package vs monolith namespace |
-| `experiments/glider_mission.py` | `_load_dataset_pickle(monolith, ...)` for pickle compat |
+| `runner.run_training` | **Decoupled** — uses `nespreso.*` imports and `pickle_compat.load_dataset_pickle` |
+| `glider_mission.py` | **Decoupled** — uses `pickle_compat.load_dataset_pickle` |
+| `tests/monolith_loader.py` + golden-pin tests | Still load monolith for namespace parity checks |
+| Dataset pickle on disk | Still stores `__main__.TemperatureSalinityDataset`; compat unpickler remaps (see `docs/PICKLE_MIGRATION.md`) |
 
 **Retirement steps (remaining):**
 
-1. Point `runner.py` at `nespreso.*` imports directly (drop `_load_monolith()`).
-2. Re-save dataset pickle with `nespreso.data.dataset.TemperatureSalinityDataset` as class path.
-3. Migrate characterization tests to package-only goldens.
-4. Keep or delete monolith file after steps 1–3 pass HPC goldens.
+1. ~~Point `runner.py` at package imports~~ — done.
+2. Optional: re-save dataset pickle with `resave_dataset_pickle` (Phase B in `docs/PICKLE_MIGRATION.md`).
+3. Migrate characterization tests off `tests/monolith_loader.py` where only used for pickle load.
+4. Delete monolith file after steps 2–3 pass HPC goldens.
 
 ## Verification
 
