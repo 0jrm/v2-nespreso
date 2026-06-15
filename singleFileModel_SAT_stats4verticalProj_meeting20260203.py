@@ -54,6 +54,7 @@ from nespreso.experiments.pca_regression import run_pca_regression_baseline
 from nespreso.experiments.glider_mission import run_glider_mission
 from nespreso.experiments.monthly_distribution import run_monthly_distribution
 from nespreso.experiments.density_stability import run_density_stability
+from nespreso.experiments.depth_interval_stats import run_depth_interval_stats
 from nespreso.experiments.validation_maps import run_validation_maps
 from nespreso.experiments.steric_depth_stats import run_steric_depth_stats
 from nespreso.utils.geo import calculate_distances, haversine
@@ -146,138 +147,20 @@ def inverse_transform(pcs, pca_temp, pca_sal, n_components):
 
 # %%
 if __name__ == "__main__":
-    from dataclasses import asdict
-
     from nespreso.config import load_config
     from nespreso.runner import run_training
 
     cfg = load_config()
-
-    # Monolith-only visualization knobs (not in YAML config).
-    bin_size = 1  # bin size in degrees
-    num_samples = 1  # profiles that will be plotted
-
-    model_cfg = cfg.model
-    input_params = asdict(cfg.input_params)
-    n_components = model_cfg.n_components
-    layers_config = list(model_cfg.layers_config)
-    batch_size = model_cfg.batch_size
-    min_depth = model_cfg.min_depth
-    max_depth = model_cfg.max_depth
-    dropout_prob = model_cfg.dropout_prob
-    learning_rate = model_cfg.learning_rate
-    train_size = model_cfg.train_size
-    val_size = model_cfg.val_size
-    test_size = model_cfg.test_size
+    bin_size = 1  # bin size in degrees (monolith-only visualization knob)
 
     _save_model_path, artifacts = run_training(cfg, return_artifacts=True)
     ctx = build_validation_context(cfg, artifacts, bin_size=bin_size)
-    full_dataset = ctx.full_dataset
-    train_dataset = ctx.train_dataset
-    val_dataset = ctx.val_dataset
-    test_dataset = ctx.test_dataset
-    train_loader = ctx.train_loader
-    val_loader = ctx.val_loader
-    test_loader = ctx.test_loader
-    trained_model = ctx.trained_model
-    device = ctx.device
-    input_dim = ctx.input_dim
-    pred_T = ctx.pred_T
-    pred_S = ctx.pred_S
-    old_pred_T = ctx.old_pred_T
-    old_pred_S = ctx.old_pred_S
-    original_profiles = ctx.original_profiles
-    pca_approx_profiles = ctx.pca_approx_profiles
-    orig_T = ctx.orig_T
-    orig_S = ctx.orig_S
-    pred_T_resid = ctx.pred_T_resid
-    pred_S_resid = ctx.pred_S_resid
-    gems_T = ctx.gems_T
-    gems_S = ctx.gems_S
-    gems_T_resid = ctx.gems_T_resid
-    gems_S_resid = ctx.gems_S_resid
-    old_T_resid = ctx.old_T_resid
-    old_S_resid = ctx.old_S_resid
-    gem_temp = ctx.gem_temp
-    gem_sal = ctx.gem_sal
-    sst_inputs = ctx.sst_inputs
-    ssh_inputs = ctx.ssh_inputs
-    lat_val = ctx.lat_val
-    lon_val = ctx.lon_val
-    dates_val = ctx.dates_val
-    subset_indices = ctx.subset_indices
-    train_indices = ctx.train_indices
-    val_indices = ctx.val_indices
-    test_indices = ctx.test_indices
-    data_ISOP = ctx.data_ISOP
-    lon_bins = ctx.lon_bins
-    lat_bins = ctx.lat_bins
-    lon_centers = ctx.lon_centers
-    lat_centers = ctx.lat_centers
-    ist = ctx.ist
-    iss = ctx.iss
-    isop_depths = ctx.isop_depths
-    avg_gem_temp_rmse = ctx.avg_gem_temp_rmse
-    avg_gem_temp_bias = ctx.avg_gem_temp_bias
-    avg_nn_temp_rmse = ctx.avg_nn_temp_rmse
-    avg_nn_temp_bias = ctx.avg_nn_temp_bias
-    avg_old_temp_rmse = ctx.avg_old_temp_rmse
-    avg_old_temp_bias = ctx.avg_old_temp_bias
-    avg_gem_sal_rmse = ctx.avg_gem_sal_rmse
-    avg_gem_sal_bias = ctx.avg_gem_sal_bias
-    avg_nn_sal_rmse = ctx.avg_nn_sal_rmse
-    avg_nn_sal_bias = ctx.avg_nn_sal_bias
-    avg_old_sal_rmse = ctx.avg_old_sal_rmse
-    avg_old_sal_bias = ctx.avg_old_sal_bias
-    val_predictions = ctx.val_predictions
 
     run_steric_depth_stats(ctx)
-
-    mlr_results = run_pca_regression_baseline(ctx)
-    beta_T = mlr_results["beta_T"]
-    beta_S = mlr_results["beta_S"]
-    mlr_T_resid = mlr_results["mlr_T_resid"]
-    mlr_S_resid = mlr_results["mlr_S_resid"]
-    avg_mlr_temp_rmse = mlr_results["avg_mlr_temp_rmse"]
-    avg_mlr_temp_bias = mlr_results["avg_mlr_temp_bias"]
-    avg_mlr_sal_rmse = mlr_results["avg_mlr_sal_rmse"]
-    avg_mlr_sal_bias = mlr_results["avg_mlr_sal_bias"]
-    X_avgs = mlr_results["X_avgs"]
-
+    run_pca_regression_baseline(ctx)
     run_validation_maps(ctx)
-
     run_glider_mission(ctx)
-
-        # calculate average bias and rmse for depth ranges
-    print(
-        "Depth range \t NeSPReSO 1.1 T RMSE \t GEM T RMSE \t NeSPReSO 1.0 T RMSE \t ISOP T RMSE \t NeSPReSO 1.1 T Bias \t GEM T Bias \t NeSPReSO 1.0 T Bias \t ISOP T Bias \t NeSPReSO 1.1 S RMSE \t GEM S RMSE \t NeSPReSO 1.0 S RMSE \t ISOP S RMSE \t NeSPReSO 1.1 S Bias \t GEM S Bias \t NeSPReSO 1.0 S Bias \t ISOP S Bias \t NeSPReSO 1.1 T R^2 \t GEM T R^2 \t NeSPReSO 1.0 T R^2 \t NeSPReSO 1.1 S R^2 \t GEM S R^2 \t NeSPReSO 1.0 S R^2"
-    )
-    intervals = default_depth_intervals(min_depth, max_depth)
-
-    for min_d, max_d in intervals:
-        metrics = compute_depth_interval_metrics(
-            min_d,
-            max_d,
-            isop_depths,
-            ist.rmse.values,
-            ist.bias.values,
-            iss.rmse.values,
-            iss.bias.values,
-            original_profiles,
-            pred_T,
-            pred_S,
-            gem_temp,
-            gem_sal,
-            old_pred_T,
-            old_pred_S,
-        )
-
-        print(
-            f"[{metrics['min_d']}-{metrics['max_d']}] \t {metrics['nn_t_rmse']:.3f} \t {metrics['gem_t_rmse']:.3f} \t {metrics['mlr_t_rmse']:.3f} \t {metrics['isop_avg_t_rmse']:.3f} \t {metrics['nn_t_bias']:.3f} \t {metrics['gem_t_bias']:.3f} \t {metrics['mlr_t_bias']:.3f} \t {metrics['isop_avg_t_bias']:.3f} \t {metrics['nn_s_rmse']:.3f} \t {metrics['gem_s_rmse']:.3f} \t {metrics['mlr_s_rmse']:.3f} \t {metrics['isop_avg_s_rmse']:.3f} \t {metrics['nn_s_bias']:.3f} \t {metrics['gem_s_bias']:.3f} \t {metrics['mlr_s_bias']:.3f} \t {metrics['isop_avg_s_bias']:.3f} \t {metrics['nn_T_corr']:.3f} \t {metrics['gem_T_corr']:.3f} \t {metrics['mlr_T_corr']:.3f} \t {metrics['nn_S_corr']:.3f} \t {metrics['gem_S_corr']:.3f} \t {metrics['mlr_S_corr']:.3f}"
-        )
-        # print(f"[{min_d}-{max_d}] \t {nn_t_rmse:.3f} \t {gem_t_rmse:.3f} \t {isop_avg_t_rmse:.3f} \t {nn_t_bias:.3f} \t {gem_t_bias:.3f} \t {isop_avg_t_bias:.3f} \t {nn_s_rmse:.3f} \t {gem_s_rmse:.3f} \t {isop_avg_s_rmse:.3f} \t {nn_s_bias:.3f} \t {gem_s_bias:.3f} \t {isop_avg_s_bias:.3f} \t {nn_T_corr:.3f} \t {gem_T_corr:.3f} \t {nn_S_corr:.3f} \t {gem_S_corr:.3f}")
-        # print("\hline")
-
+    run_depth_interval_stats(ctx)
     run_density_stability(ctx)
 
         # #create a netcdf file with the validation dataset

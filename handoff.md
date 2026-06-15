@@ -1,4 +1,4 @@
-# NeSPReSO Refactor Handoff — Continue from Phase 8 extraction
+# NeSPReSO Refactor Handoff — Phase 8 complete, start Phase 9
 
 We are refactoring the NeSPReSO monolith:
 
@@ -12,48 +12,43 @@ Branch:
 
 `refactor/modularize`
 
-## Phase 8 — in progress (experiments peel)
+## Phase 8 — complete
 
-### Helpers hoisted from nested `__main__`
-
-| Symbol | Path |
-|---|---|
-| `get_month`, `get_season` | `src/nespreso/utils/time.py` |
-| `count_profiles_per_month` | `src/nespreso/analysis/monthly.py` |
-| `print_training_params` | `src/nespreso/reporting.py` |
-
-### Experiment library (`src/nespreso/experiments/`)
+All `phase8.txt` experiment scripts exist under `experiments/` with library modules in `src/nespreso/experiments/`.
 
 | Module | Contents |
 |---|---|
-| `validation_context.py` | `ValidationContext`, `build_validation_context` — post-training preds, GEM, legacy 1.0, ISOP stats |
-| `pca_regression.py` | `run_pca_regression_baseline` — MLR fit, depth RMSE/bias figure, coefficient heatmaps |
-| `density_stability.py` | `run_density_stability` — vertical density/stability/smoothness comparison plots |
-| `glider_mission.py` | `run_glider_mission` — four glider crossings + AVISO overlay maps |
-| `validation_maps.py` | `run_validation_maps` — binned RMSE/bias maps, seasonal depth curves, comparison maps |
-| `steric_depth_stats.py` | `run_steric_depth_stats` — steric-height / ISOP depth-bin T/S std pcolormesh (full + August) |
-| `monthly_distribution.py` | `run_monthly_distribution` — train/val/test profiles-per-month stacked bar chart |
-| `common.py` | `build_experiment_parser`, `load_cfg_and_artifacts`, matplotlib setup |
+| `validation_context.py` | `ValidationContext`, `build_validation_context` — ISOP bins, residuals, depth RMSE/bias |
+| `compare_legacy_nespreso.py` | Timing, ensemble, NeSPReSO 1.0 load, GEM timing (called from validation_context) |
+| `pca_regression.py` | `run_pca_regression_baseline` |
+| `density_stability.py` | `run_density_stability` |
+| `glider_mission.py` | `run_glider_mission` |
+| `validation_maps.py` | `run_validation_maps` |
+| `steric_depth_stats.py` | `run_steric_depth_stats` |
+| `depth_interval_stats.py` | `run_depth_interval_stats` |
+| `monthly_distribution.py` | `run_monthly_distribution` |
+| `common.py` | `build_experiment_parser`, `load_cfg_and_artifacts` |
 
 ### Runnable scripts (`experiments/`)
 
-- `experiments/train.py` — `--config`, optional `--tensorboard` / `--log-dir`
-- `experiments/pca_regression_baseline.py` — `--config`, `--bin-size`
-- `experiments/density_stability.py`
-- `experiments/glider_mission.py`
-- `experiments/validation_maps.py`
-- `experiments/steric_depth_stats.py`
-- `experiments/monthly_distribution.py`
+- `train.py`
+- `compare_legacy_nespreso.py`
+- `pca_regression_baseline.py`
+- `density_stability.py`
+- `glider_mission.py`
+- `validation_maps.py`
+- `steric_depth_stats.py`
+- `depth_interval_stats.py`
+- `monthly_distribution.py`
 
-Monolith `__main__` delegates to `build_validation_context` + the experiment runners above. Depth-interval metric table remains inline until peeled.
+Monolith `__main__` is a thin orchestrator: `run_training` → `build_validation_context` → experiment runners. Large commented blocks remain for Phase 9 dead-code review.
 
-### Pin tests added
+## Phase 9 — next (per `phase9.txt`)
 
-- `tests/test_experiment_helpers.py` — `get_season`, `get_month`, `count_profiles_per_month`
-
-## Phase 7 — complete
-
-Per `phase7.txt`, all plotting and analysis helpers are under `src/nespreso/viz/` and `src/nespreso/analysis/`.
+1. Dead-code pass on monolith commented blocks (~lines 165–465); list removals under `## Removed - confirm` and wait for sign-off on ambiguous blocks.
+2. Finish type hints / docstrings on public APIs.
+3. Write `ARCHITECTURE.md` (module map, data flow, experiment how-to, domain quirks).
+4. Confirm monolith can retire (nothing imports it except characterization tests / runner shim).
 
 ## Verification
 
@@ -72,27 +67,18 @@ srun --ntasks=1 --cpus-per-task=8 --gres=gpu:1 \
   -m requires_unity --run-unity -q
 ```
 
-## Next sprint: Phase 8 continued
-
-Remaining inline `__main__` blocks to peel per `phase8.txt`:
-
-1. `experiments/compare_legacy_nespreso.py` — timing / ensemble / legacy 1.0 load (now in `validation_context`; may split)
-2. Depth-interval metrics print loop (inline in monolith `__main__`; candidate for `experiments/depth_interval_stats.py`)
-
-Then Phase 9: dead-code pass, `ARCHITECTURE.md`, monolith retirement.
-
 ## Needs human review
 
-- **ISOP comparison maps**: `avg_rmse_isop_*` / `avg_bias_isop_*` restored in `run_validation_maps` from `ctx.data_ISOP` (were dropped during the first validation-context peel).
-- **Glider satellite cache**: monolith previously referenced undefined `data` / `dataset_pickle_file` after `run_training` refactor; `run_glider_mission` now loads the dataset pickle explicitly before the `sss1` cache branch.
-- **`lon_val` binning** at validation setup: `lon_val = np.floor(lon_val) + bin_size / 2` (preserved verbatim from monolith).
+- **ISOP comparison maps**: `avg_rmse_isop_*` restored in `run_validation_maps` from `ctx.data_ISOP`.
+- **Glider satellite cache**: `run_glider_mission` loads dataset pickle before `sss1` cache branch.
+- **`lon_val` binning**: `lon_val = np.floor(lon_val) + bin_size / 2` (preserved verbatim).
+- **Phase 9 commented monolith blocks**: netCDF export, nature-run T-S, sound-speed NPL, etc. — confirm before delete.
 
 ## Rules reminder
 
 - Preserve behavior; move verbatim first.
 - One commit per logical move; repo importable after each.
 - Run characterization tests on HPC after numerical moves.
-- Read `AGENTS.md` / `CLAUDE.md` before every change.
 
 ## Prior handoffs
 
