@@ -30,15 +30,18 @@ Branch:
 | `pca_regression.py` | `run_pca_regression_baseline` — MLR fit, depth RMSE/bias figure, coefficient heatmaps |
 | `density_stability.py` | `run_density_stability` — vertical density/stability/smoothness comparison plots |
 | `glider_mission.py` | `run_glider_mission` — four glider crossings + AVISO overlay maps |
+| `validation_maps.py` | `run_validation_maps` — binned RMSE/bias maps, seasonal depth curves, comparison maps |
 | `common.py` | `build_experiment_parser`, `load_cfg_and_artifacts`, matplotlib setup |
 
 ### Runnable scripts (`experiments/`)
 
+- `experiments/train.py` — `--config`, optional `--tensorboard` / `--log-dir`
 - `experiments/pca_regression_baseline.py` — `--config`, `--bin-size`
 - `experiments/density_stability.py`
 - `experiments/glider_mission.py`
+- `experiments/validation_maps.py`
 
-Monolith `__main__` delegates to `build_validation_context` + the three experiment runners above. Steric-height, validation maps, seasonal plots, depth-interval tables, and monthly distribution remain inline until peeled.
+Monolith `__main__` delegates to `build_validation_context` + the experiment runners above. Steric-height, depth-interval tables, and monthly distribution remain inline until peeled.
 
 ### Pin tests added
 
@@ -69,16 +72,15 @@ srun --ntasks=1 --cpus-per-task=8 --gres=gpu:1 \
 
 Remaining inline `__main__` blocks to peel per `phase8.txt`:
 
-1. `experiments/train.py` (thin wrapper; training already in `nespreso.cli`)
-2. `experiments/validation_maps.py` — RMSE/bias maps, seasonal depth curves, comparison maps
-3. `experiments/steric_depth_stats.py` — steric-height / ISOP depth-bin orchestration (~lines 433–933)
-4. `experiments/compare_legacy_nespreso.py` — timing / ensemble / legacy 1.0 load (now in `validation_context`; may split)
-5. `experiments/monthly_distribution.py` — train/val/test profiles-per-month bar chart
+1. `experiments/steric_depth_stats.py` — steric-height / ISOP depth-bin orchestration (~lines 433–933)
+2. `experiments/compare_legacy_nespreso.py` — timing / ensemble / legacy 1.0 load (now in `validation_context`; may split)
+3. `experiments/monthly_distribution.py` — train/val/test profiles-per-month bar chart
 
 Then Phase 9: dead-code pass, `ARCHITECTURE.md`, monolith retirement.
 
 ## Needs human review
 
+- **ISOP comparison maps**: `avg_rmse_isop_*` / `avg_bias_isop_*` restored in `run_validation_maps` from `ctx.data_ISOP` (were dropped during the first validation-context peel).
 - **Glider satellite cache**: monolith previously referenced undefined `data` / `dataset_pickle_file` after `run_training` refactor; `run_glider_mission` now loads the dataset pickle explicitly before the `sss1` cache branch.
 - **`lon_val` binning** at validation setup: `lon_val = np.floor(lon_val) + bin_size / 2` (preserved verbatim from monolith).
 
