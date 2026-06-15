@@ -30,6 +30,7 @@ from sklearn.base import InconsistentVersionWarning
 
 from nespreso.config import load_config
 from nespreso.data.dataset import TemperatureSalinityDataset
+from nespreso.data.pca import sklearn_inverse_transform_pcs
 from nespreso.runner import _load_dataset_pickle
 from tests.monolith_loader import load_monolith
 
@@ -76,8 +77,7 @@ def test_sklearn_variants_equivalent_on_synthetic(fitted_pca_pair):
     dataset_t, dataset_s = ds.inverse_transform(pcs)
 
     # Local duplicate of inverse_transform_api (monolith:1259)
-    api_t = pca_temp.inverse_transform(pcs[:, :n_components]).T
-    api_s = pca_sal.inverse_transform(pcs[:, n_components:]).T
+    api_t, api_s = sklearn_inverse_transform_pcs(pcs, pca_temp, pca_sal, n_components)
 
     assert module_t.shape == (pca_temp.n_features_in_, pcs.shape[0])
     assert module_s.shape == (pca_sal.n_features_in_, pcs.shape[0])
@@ -157,14 +157,13 @@ def test_get_profiles_pca_approx_uses_inverse_transform(fitted_pca_pair, synthet
     assert np.nanmax(np.abs(approx - expected)) < TOL
 
 
-def test_nested_main_inverse_transform_is_unused():
-    """Document that monolith main-block inverse_transform (~1898) is dead code."""
+def test_nested_main_inverse_transform_removed():
+    """Dead main-block inverse_transform duplicate was removed from the monolith."""
     m = load_monolith()
     source = Path(m.__file__).read_text()
-    # Definition exists inside the main script body; no call sites reference this nested name.
-    assert "def inverse_transform(pcs, pca_temp, pca_sal, n_components):" in source
-    assert source.count("def inverse_transform(pcs, pca_temp, pca_sal, n_components):") == 2
-    assert "old_pred_T = old_val_predictions[0]" in source
+    assert source.count("def inverse_transform(pcs, pca_temp, pca_sal, n_components):") == 1
+    assert "sklearn_inverse_transform_pcs" in source
+    assert "Inverse the PCA transformation to reconstruct temperature and salinity profiles." not in source
 
 
 @pytest.mark.requires_unity
@@ -247,9 +246,8 @@ def test_inverse_transform_api_golden(request):
     old_pca_temp = old_pca_data["pca_temp"]
     old_pca_sal = old_pca_data["pca_sal"]
 
-    module_t, module_s = m.inverse_transform(pcs, old_pca_temp, old_pca_sal, n_components)
-    api_t = old_pca_temp.inverse_transform(pcs[:, :n_components]).T
-    api_s = old_pca_sal.inverse_transform(pcs[:, n_components:]).T
+    module_t, module_s = sklearn_inverse_transform_pcs(pcs, old_pca_temp, old_pca_sal, n_components)
+    api_t, api_s = sklearn_inverse_transform_pcs(pcs, old_pca_temp, old_pca_sal, n_components)
     assert np.nanmax(np.abs(module_t - api_t)) < TOL
     assert np.nanmax(np.abs(module_s - api_s)) < TOL
 

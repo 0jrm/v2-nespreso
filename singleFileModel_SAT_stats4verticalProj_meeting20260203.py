@@ -52,6 +52,11 @@ from nespreso.determinism import get_device, set_seed
 from nespreso.train import evaluate_model, train_model
 from nespreso.data.features import prepare_inputs
 from nespreso.data.dataset import TemperatureSalinityDataset
+from nespreso.data.pca import (
+    sklearn_inverse_transform_pcs,
+    torch_reconstruct_profile,
+    torch_reconstruct_profiles,
+)
 from nespreso.data.splits import IndexedSubset, split_dataset
 
 plt.rcParams.update({"font.size": 18})
@@ -220,20 +225,7 @@ def predict_with_numpy(model, numpy_input, device=DEVICE):
 
 
 def inverse_transform(pcs, pca_temp, pca_sal, n_components):
-    """
-    Inverse the PCA transformation.
-
-    Args:
-    - pcs (numpy.ndarray): Concatenated PCA components for temperature and salinity.
-    - pca_temp, pca_sal: PCA models for temperature and salinity respectively.
-    - n_components (int): Number of PCA components.
-
-    Returns:
-    - tuple: Inversed temperature and salinity profiles.
-    """
-    temp_profiles = pca_temp.inverse_transform(pcs[:, :n_components]).T
-    sal_profiles = pca_sal.inverse_transform(pcs[:, n_components:]).T
-    return temp_profiles, sal_profiles
+    return sklearn_inverse_transform_pcs(pcs, pca_temp, pca_sal, n_components)
 
 
 ## Custom Loss
@@ -290,8 +282,7 @@ class PCALoss(nn.Module):  # min test loss ~ 13
         self.register_buffer("sal_mean", sal_mean)
 
     def inverse_transform(self, pcs, components, mean):
-        # Reconstruct profiles: (batch, n_components) @ (n_components, n_features) + (1, n_features)
-        return pcs @ components + mean
+        return torch_reconstruct_profile(pcs, components, mean)
 
     def forward(self, pcs, targets):
         # Split the predicted and true pcs for temp and sal
@@ -337,9 +328,14 @@ class CombinedPCALoss(nn.Module):
             self.density_helper = None
 
     def _reconstruct_profiles(self, temp_pcs, sal_pcs):
-        temp_profiles = temp_pcs @ self.temp_components + self.temp_mean
-        sal_profiles = sal_pcs @ self.sal_components + self.sal_mean
-        return temp_profiles, sal_profiles
+        return torch_reconstruct_profiles(
+            temp_pcs,
+            sal_pcs,
+            self.temp_components,
+            self.sal_components,
+            self.temp_mean,
+            self.sal_mean,
+        )
 
     def forward(self, pcs, targets, indices=None):
         # Calculate the PCA loss
@@ -1255,14 +1251,9 @@ if __name__ == "__main__":
 
     old_val_predictions_pcs = get_predictions_torchscript(old_model, val_loader, device, old_input_params)
 
-    # Use the API's PCA objects for inverse transform
-    def inverse_transform_api(pcs, pca_temp, pca_sal, n_components):
-        """Inverse transform using API PCA objects."""
-        temp_profiles = pca_temp.inverse_transform(pcs[:, :n_components]).T
-        sal_profiles = pca_sal.inverse_transform(pcs[:, n_components:]).T
-        return temp_profiles, sal_profiles
-
-    old_val_predictions = inverse_transform_api(old_val_predictions_pcs, old_pca_temp, old_pca_sal, n_components)
+    old_val_predictions = sklearn_inverse_transform_pcs(
+        old_val_predictions_pcs, old_pca_temp, old_pca_sal, n_components
+    )
     old_pred_T = old_val_predictions[0]
     old_pred_S = old_val_predictions[1]
 
@@ -1894,23 +1885,6 @@ if __name__ == "__main__":
             pcs_pred_tensor = X_new_tensor @ beta
             pcs_pred = pcs_pred_tensor.cpu().numpy()
         return pcs_pred
-
-    def inverse_transform(pcs, pca_temp, pca_sal, n_components):
-        """
-        Inverse the PCA transformation to reconstruct temperature and salinity profiles.
-
-        Args:
-        - pcs (numpy.ndarray): Concatenated PCA components for temperature and salinity.
-        - pca_temp, pca_sal: PCA models for temperature and salinity respectively.
-        - n_components (int): Number of PCA components for each.
-
-        Returns:
-        - temp_profiles (numpy.ndarray): Reconstructed temperature profiles.
-        - sal_profiles (numpy.ndarray): Reconstructed salinity profiles.
-        """
-        temp_profiles = pca_temp.inverse_transform(pcs[:, :n_components]).T
-        sal_profiles = pca_sal.inverse_transform(pcs[:, n_components:]).T
-        return temp_profiles, sal_profiles
 
     # Use NeSPReSO 1.0 (old model) predictions instead of MLR
     # The old model predictions were already computed above

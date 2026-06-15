@@ -1,14 +1,13 @@
 """Temperature/salinity profile dataset for NeSPReSO."""
 
-import time
-
 import mat73
 import numpy as np
 import torch
-from numpy.polynomial.polynomial import Polynomial
-from scipy.stats import linregress
 from sklearn.decomposition import PCA
 
+from nespreso.data.gem import calc_gem as _calc_gem
+from nespreso.data.gem import get_gem_profiles as _get_gem_profiles
+from nespreso.data.pca import sklearn_inverse_transform_pcs
 from nespreso.io.argo import load_argo_mat
 from nespreso.io.satellite import load_satellite_data_for_dataset
 from nespreso.utils.time import datenum_to_datetime
@@ -287,9 +286,7 @@ class TemperatureSalinityDataset(torch.utils.data.Dataset):
         Returns:
         - tuple: Inversed temperature and salinity profiles.
         """
-        temp_profiles = self.pca_temp.inverse_transform(pcs[:, : self.n_components]).T
-        sal_profiles = self.pca_sal.inverse_transform(pcs[:, self.n_components :]).T
-        return temp_profiles, sal_profiles
+        return sklearn_inverse_transform_pcs(pcs, self.pca_temp, self.pca_sal, self.n_components)
 
     def get_profiles(self, indices, pca_approx=False):
         """
@@ -329,67 +326,7 @@ class TemperatureSalinityDataset(torch.utils.data.Dataset):
         Returns:
         - nothing, but saves the polyfits in the attributes `self.gem_T_polyfits` and `self.gem_S_polyfits` for each month.
         """
-
-        self.pressure_grid = np.arange(self.min_depth, self.max_depth + 1)
-        # Initialize dictionaries to hold polyfits for each month
-        self.gem_T_polyfits = {}
-        self.gem_S_polyfits = {}
-
-        mask = np.ones(len(self.SH1950), dtype=bool)
-        mask[ignore_indices] = False
-
-        steric_height = self.SH1950[mask]
-        SSH = self.AVISO_ADT[mask]
-        TEMP = self.TEMP[:, mask]
-        SAL = self.SAL[:, mask]
-        TIME = np.array(self.TIME)[mask]  # Apply mask to TIME
-
-        self.gem_slope, self.gem_intercept, _, _, _ = linregress(steric_height, SSH)
-
-        sort_idx = np.argsort(steric_height)
-
-        sh_sorted = (
-            steric_height[sort_idx] + np.arange(len(steric_height)) * 1e-10
-        )  # add small number to avoid duplicate values
-        temp_sorted = TEMP[:, sort_idx]
-        sal_sorted = SAL[:, sort_idx]
-        time_sorted = TIME[sort_idx]  # Sort TIME based on steric_height sorting
-
-        # Convert sorted TIME to months
-        months_sorted = [int((datenum_to_datetime(datenum).month - 1) / 3) for datenum in time_sorted]
-
-        # Start time
-        start_time = time.perf_counter()
-
-        # Iterate over each month
-        for month in set(months_sorted):
-            self.gem_T_polyfits[month] = []
-            self.gem_S_polyfits[month] = []
-
-            # Indices for the current month
-            month_indices = [i for i, m in enumerate(months_sorted) if m == month]
-
-            # For each pressure level
-            for i, p in enumerate(self.pressure_grid):
-                # Filter data for the current month
-                TEMP_at_p = temp_sorted[i, month_indices]
-                SAL_at_p = sal_sorted[i, month_indices]
-                sh_at_p = sh_sorted[month_indices]
-
-                # Polynomial fit for the current month
-                TEMP_polyfit = Polynomial.fit(sh_at_p, TEMP_at_p, degree)
-                SAL_polyfit = Polynomial.fit(sh_at_p, SAL_at_p, degree)
-
-                # Append the polynomial fit to the lists for the current month
-                self.gem_T_polyfits[month].append(TEMP_polyfit)
-                self.gem_S_polyfits[month].append(SAL_polyfit)
-
-        end_time = time.perf_counter()
-        # Calculate elapsed time
-        elapsed_time = end_time - start_time
-        print(f"GEM fit: {elapsed_time:.2f} seconds.")
-
-        return
+        return _calc_gem(self, ignore_indices, degree=degree, sat_ssh=sat_ssh)
 
     def get_gem_profiles(self, indices, sat_ssh=True):
         """
@@ -402,51 +339,7 @@ class TemperatureSalinityDataset(torch.utils.data.Dataset):
         Returns:
         - numpy.ndarray: concatenated temperature and salinity profiles in the required format for visualization.
         """
-
-        # Initialize arrays to hold GEM profiles
-        temp_GEM = np.empty((len(indices), self.max_depth + 1 - self.min_depth))
-        sal_GEM = np.empty((len(indices), self.max_depth + 1 - self.min_depth))
-        temp_GEM[:] = np.nan  # Initialize with NaNs
-        sal_GEM[:] = np.nan
-
-        for idx, index in enumerate(indices):
-            # Determine the month for the current index
-            month = int((datenum_to_datetime(self.TIME[index]).month - 1) / 3)
-
-            # Check if there are polyfits for this month
-            if month not in self.gem_T_polyfits:
-                continue  # Skip if no polyfits available for the month
-
-            # Select SSH based on the sat_ssh flag
-            if sat_ssh:
-                ssh = (self.AVISO_ADT[index] - self.gem_intercept) / self.gem_slope
-            else:
-                ssh = self.SH1950[index]
-
-            # For each pressure level
-            for i, p in enumerate(self.pressure_grid):
-                # Evaluate the fitted polynomials at the given SSH value
-                temp_GEM[idx, i] = self.gem_T_polyfits[month][i](ssh)
-                sal_GEM[idx, i] = self.gem_S_polyfits[month][i](ssh)
-
-        # Interpolate missing values in temp_GEM and sal_GEM (same as before)
-        for array in [temp_GEM, sal_GEM]:
-            for row in range(array.shape[0]):
-                valid_mask = ~np.isnan(array[row])
-                if not valid_mask.any():  # skip rows with only NaNs
-                    continue
-
-                array[row] = np.interp(np.arange(array.shape[1]), np.where(valid_mask)[0], array[row, valid_mask])
-
-                # If NaNs at the start, fill with the first non-NaN value
-                first_valid_idx = valid_mask.argmax()
-                array[row, :first_valid_idx] = array[row, first_valid_idx]
-
-                # If NaNs at the end, fill with the last non-NaN value
-                last_valid_idx = len(array[row]) - valid_mask[::-1].argmax() - 1
-                array[row, last_valid_idx + 1 :] = array[row, last_valid_idx]
-
-        return temp_GEM, sal_GEM
+        return _get_gem_profiles(self, indices, sat_ssh=sat_ssh)
 
     def get_inputs(self, idx):
         sst_inputs = self.TEMP[0, idx]
