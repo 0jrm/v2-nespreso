@@ -113,6 +113,193 @@ def inverse_transform(pcs, pca_temp, pca_sal, n_components):
     return sklearn_inverse_transform_pcs(pcs, pca_temp, pca_sal, n_components)
 
 
+
+
+
+def get_glider_predictions(model, loader, tensor, device, inverse_transform, max_depth=1004, min_depth=0):
+    tensor = tensor.to(device)
+
+    # Get predictions
+    model.eval()
+    with torch.no_grad():
+        gld_predictions_pcs = model(tensor)
+        gld_predictions_pcs_cpu = gld_predictions_pcs.cpu().numpy()
+        gld_predictions = inverse_transform(gld_predictions_pcs_cpu)
+
+    # crop at max depth
+    T_predictions = gld_predictions[0][min_depth : max_depth + 1, :]
+    S_predictions = gld_predictions[1][min_depth : max_depth + 1, :]
+    return T_predictions, S_predictions
+
+
+def bin_data(data, bin_size):
+    """
+    Bin data vertically to a given bin size.
+
+    Args:
+    - data (np.array): Data to be binned.
+    - bin_size (int): Size of each bin.
+
+    Returns:
+    - np.array: Binned data.
+    """
+    n_rows = data.shape[0] // bin_size
+    binned_data = np.mean(data[: n_rows * bin_size].reshape(n_rows, bin_size, -1), axis=1)
+    return binned_data
+
+
+
+
+def calculate_correlation(observation, prediction):
+    """
+    Calculate the Pearson correlation coefficient between two 2D matrices,
+    ignoring positions with NaNs in the observation matrix.
+
+    Args:
+    - observation (np.array): 2D array of observed data with NaNs for missing values.
+    - prediction (np.array): 2D array of predicted data.
+
+    Returns:
+    - float: Pearson correlation coefficient, or NaN if it cannot be calculated.
+    """
+    # Flatten the arrays to 1D
+    obs_flat = observation.flatten()
+    pred_flat = prediction.flatten()
+
+    # Create a mask for non-NaN values
+    valid_mask = ~np.isnan(obs_flat)
+
+    # Filter both arrays to include only the valid (non-NaN) values
+    valid_obs = obs_flat[valid_mask]
+    valid_pred = pred_flat[valid_mask]
+
+    # Calculate the Pearson correlation coefficient on the non-NaN values
+    if valid_obs.size == 0:
+        return np.nan  # Return NaN if no valid observations
+    correlation, _ = pearsonr(valid_obs, valid_pred)
+
+    return correlation
+
+
+
+
+def compute_profile_residual(predicted, original):
+    return predicted - original
+
+
+def compute_depth_rmse_bias(residual, axis=1):
+    se = residual**2
+    avg_rmse = np.sqrt(np.mean(se, axis=axis))
+    avg_bias = np.mean(residual, axis=axis)
+    return avg_rmse, avg_bias
+
+
+
+
+def isop_depth_indices(isop_depths, min_d, max_d):
+    return np.where((isop_depths >= min_d) & (isop_depths <= max_d))[0]
+
+
+def default_depth_intervals(min_depth, max_depth):
+    return [
+        (min_depth, 20),
+        (20, 100),
+        (100, 200),
+        (200, 500),
+        (500, 1000),
+        (1000, max_depth),
+        (0, 1000),
+        (min_depth, max_depth),
+    ]
+
+
+def compute_season_masked_depth_rmse_bias(residual, season_mask):
+    rmse_by_depth = np.sqrt(np.nanmean((residual[:, season_mask]) ** 2, axis=1))
+    bias_by_depth = np.nanmean(residual[:, season_mask], axis=1)
+    return rmse_by_depth, bias_by_depth
+
+
+def compute_depth_interval_metrics(
+    min_d,
+    max_d,
+    isop_depths,
+    ist_rmse_values,
+    ist_bias_values,
+    iss_rmse_values,
+    iss_bias_values,
+    original_profiles,
+    pred_T,
+    pred_S,
+    gem_temp,
+    gem_sal,
+    temp_MLR_profiles,
+    sal_MLR_profiles,
+    correlation_fn=calculate_correlation,
+):
+    i_isop_dpt = isop_depth_indices(isop_depths, min_d, max_d)
+    calc_depths = isop_depths[i_isop_dpt].astype(int)
+    ori_t = original_profiles[calc_depths, 0, :]
+    ori_s = original_profiles[calc_depths, 1, :]
+    nn_t = pred_T[calc_depths, :]
+    nn_s = pred_S[calc_depths, :]
+    gem_t = gem_temp[:, calc_depths].T
+    gem_s = gem_sal[:, calc_depths].T
+    mlr_t = temp_MLR_profiles[calc_depths, :]
+    mlr_s = sal_MLR_profiles[calc_depths, :]
+
+    nn_t_rmse = rmse(nn_t, ori_t)
+    gem_t_rmse = rmse(gem_t, ori_t)
+    nn_t_bias = bias(nn_t, ori_t)
+    gem_t_bias = bias(gem_t, ori_t)
+    nn_s_rmse = rmse(nn_s, ori_s)
+    gem_s_rmse = rmse(gem_s, ori_s)
+    nn_s_bias = bias(nn_s, ori_s)
+    gem_s_bias = bias(gem_s, ori_s)
+
+    mlr_t_rmse = rmse(mlr_t, ori_t)
+    mlr_t_bias = bias(mlr_t, ori_t)
+    mlr_s_rmse = rmse(mlr_s, ori_s)
+    mlr_s_bias = bias(mlr_s, ori_s)
+
+    isop_avg_t_rmse = np.mean(ist_rmse_values[i_isop_dpt])
+    isop_avg_t_bias = np.mean(ist_bias_values[i_isop_dpt])
+    isop_avg_s_rmse = np.mean(iss_rmse_values[i_isop_dpt])
+    isop_avg_s_bias = np.mean(iss_bias_values[i_isop_dpt])
+
+    nn_T_corr = correlation_fn(nn_t, ori_t)
+    gem_T_corr = correlation_fn(gem_t, ori_t)
+    nn_S_corr = correlation_fn(nn_s, ori_s)
+    gem_S_corr = correlation_fn(gem_s, ori_s)
+    mlr_T_corr = correlation_fn(mlr_t, ori_t)
+    mlr_S_corr = correlation_fn(mlr_s, ori_s)
+
+    return {
+        "min_d": min_d,
+        "max_d": max_d,
+        "nn_t_rmse": nn_t_rmse,
+        "gem_t_rmse": gem_t_rmse,
+        "mlr_t_rmse": mlr_t_rmse,
+        "isop_avg_t_rmse": isop_avg_t_rmse,
+        "nn_t_bias": nn_t_bias,
+        "gem_t_bias": gem_t_bias,
+        "mlr_t_bias": mlr_t_bias,
+        "isop_avg_t_bias": isop_avg_t_bias,
+        "nn_s_rmse": nn_s_rmse,
+        "gem_s_rmse": gem_s_rmse,
+        "mlr_s_rmse": mlr_s_rmse,
+        "isop_avg_s_rmse": isop_avg_s_rmse,
+        "nn_s_bias": nn_s_bias,
+        "gem_s_bias": gem_s_bias,
+        "mlr_s_bias": mlr_s_bias,
+        "isop_avg_s_bias": isop_avg_s_bias,
+        "nn_T_corr": nn_T_corr,
+        "gem_T_corr": gem_T_corr,
+        "mlr_T_corr": mlr_T_corr,
+        "nn_S_corr": nn_S_corr,
+        "gem_S_corr": gem_S_corr,
+        "mlr_S_corr": mlr_S_corr,
+    }
+
 # %%
 if __name__ == "__main__":
     from dataclasses import asdict
@@ -387,28 +574,16 @@ if __name__ == "__main__":
 
     print("Let's investigate how the method compares against vanilla GEM with in-situ SSH")
 
-    gem_temp_se = gems_T_resid**2
-    gem_sal_se = gems_S_resid**2
-
-    nn_temp_se = pred_T_resid**2
-    nn_sal_se = pred_S_resid**2
-
     ist = xr.open_dataset("/unity/g2/jmiranda/SubsurfaceFields/Data/isop1_stats_temp.nc")
     iss = xr.open_dataset("/unity/g2/jmiranda/SubsurfaceFields/Data/isop1_stats_salt.nc")
 
     our_depths = np.arange(0, 1801)
     isop_depths = ist.depth.values
-    avg_gem_temp_rmse = np.sqrt(np.mean(gem_temp_se, axis=1))
-    avg_nn_temp_rmse = np.sqrt(np.mean(nn_temp_se, axis=1))
+    avg_gem_temp_rmse, avg_gem_temp_bias = compute_depth_rmse_bias(gems_T_resid, axis=1)
+    avg_nn_temp_rmse, avg_nn_temp_bias = compute_depth_rmse_bias(pred_T_resid, axis=1)
 
-    avg_gem_sal_rmse = np.sqrt(np.mean(gem_sal_se, axis=1))
-    avg_nn_sal_rmse = np.sqrt(np.mean(nn_sal_se, axis=1))
-
-    avg_gem_temp_bias = np.mean(gems_T_resid, axis=1)
-    avg_nn_temp_bias = np.mean(pred_T_resid, axis=1)
-
-    avg_gem_sal_bias = np.mean(gems_S_resid, axis=1)
-    avg_nn_sal_bias = np.mean(pred_S_resid, axis=1)
+    avg_gem_sal_rmse, avg_gem_sal_bias = compute_depth_rmse_bias(gems_S_resid, axis=1)
+    avg_nn_sal_rmse, avg_nn_sal_bias = compute_depth_rmse_bias(pred_S_resid, axis=1)
 
     # Identify indices for the training, validation, and testing datasets
     train_indices = train_dataset.indices
@@ -988,20 +1163,12 @@ if __name__ == "__main__":
     original_sal_profiles = original_profiles[:, 1, :]  # Shape: (n_samples, depth_levels)
 
     # Calculate residuals
-    mlr_T_resid = temp_MLR_profiles - original_temp_profiles  # Shape: (n_samples, depth_levels)
-    mlr_S_resid = sal_MLR_profiles - original_sal_profiles  # Shape: (n_samples, depth_levels)
+    mlr_T_resid = compute_profile_residual(temp_MLR_profiles, original_temp_profiles)
+    mlr_S_resid = compute_profile_residual(sal_MLR_profiles, original_sal_profiles)
 
-    # Compute squared errors
-    mlr_temp_se = mlr_T_resid**2  # Shape: (depth_levels, n_samples)
-    mlr_sal_se = mlr_S_resid**2  # Shape: (depth_levels, n_samples)
-
-    # Compute average RMSE
-    avg_mlr_temp_rmse = np.sqrt(np.mean(mlr_temp_se, axis=1))  # Shape: (depth_levels,)
-    avg_mlr_sal_rmse = np.sqrt(np.mean(mlr_sal_se, axis=1))  # Shape: (depth_levels,)
-
-    # Compute average bias
-    avg_mlr_temp_bias = np.mean(mlr_T_resid, axis=1)  # Shape: (depth_levels,)
-    avg_mlr_sal_bias = np.mean(mlr_S_resid, axis=1)  # Shape: (depth_levels,)
+    # Compute average RMSE and bias
+    avg_mlr_temp_rmse, avg_mlr_temp_bias = compute_depth_rmse_bias(mlr_T_resid, axis=1)
+    avg_mlr_sal_rmse, avg_mlr_sal_bias = compute_depth_rmse_bias(mlr_S_resid, axis=1)
 
     fig = plt.figure(figsize=(18, 18))
 
@@ -1195,18 +1362,12 @@ if __name__ == "__main__":
         season_mask = np.array([get_season(date) for date in python_dates]) == season
 
         # Calculate RMSE and bias by depth for each season for both NN and GEM
-        nn_temp_rmse = np.sqrt(np.nanmean((pred_T_resid[:, season_mask]) ** 2, axis=1))
-        nn_sal_rmse = np.sqrt(np.nanmean((pred_S_resid[:, season_mask]) ** 2, axis=1))
-        nn_temp_bias = np.nanmean(pred_T_resid[:, season_mask], axis=1)
-        nn_sal_bias = np.nanmean(pred_S_resid[:, season_mask], axis=1)
-        gem_temp_rmse = np.sqrt(np.nanmean((gems_T_resid[:, season_mask]) ** 2, axis=1))
-        gem_sal_rmse = np.sqrt(np.nanmean((gems_S_resid[:, season_mask]) ** 2, axis=1))
-        gem_temp_bias = np.nanmean(gems_T_resid[:, season_mask], axis=1)
-        gem_sal_bias = np.nanmean(gems_S_resid[:, season_mask], axis=1)
-        mlr_temp_rmse = np.sqrt(np.nanmean((mlr_T_resid[:, season_mask]) ** 2, axis=1))
-        mlr_sal_rmse = np.sqrt(np.nanmean((mlr_S_resid[:, season_mask]) ** 2, axis=1))
-        mlr_temp_bias = np.nanmean(mlr_T_resid[:, season_mask], axis=1)
-        mlr_sal_bias = np.nanmean(mlr_S_resid[:, season_mask], axis=1)
+        nn_temp_rmse, nn_temp_bias = compute_season_masked_depth_rmse_bias(pred_T_resid, season_mask)
+        nn_sal_rmse, nn_sal_bias = compute_season_masked_depth_rmse_bias(pred_S_resid, season_mask)
+        gem_temp_rmse, gem_temp_bias = compute_season_masked_depth_rmse_bias(gems_T_resid, season_mask)
+        gem_sal_rmse, gem_sal_bias = compute_season_masked_depth_rmse_bias(gems_S_resid, season_mask)
+        mlr_temp_rmse, mlr_temp_bias = compute_season_masked_depth_rmse_bias(mlr_T_resid, season_mask)
+        mlr_sal_rmse, mlr_sal_bias = compute_season_masked_depth_rmse_bias(mlr_S_resid, season_mask)
 
         # Append data to lists
         nn_temp_rmse_all.append(nn_temp_rmse)
@@ -1564,42 +1725,40 @@ if __name__ == "__main__":
 
     pred_max_depth = 1004
 
-    def get_glider_predictions(model, loader, tensor, device, max_depth=pred_max_depth, min_depth=0):
-        tensor = tensor.to(device)
-
-        # Get predictions
-        trained_model.eval()
-        with torch.no_grad():
-            gld_predictions_pcs = trained_model(tensor)
-            gld_predictions_pcs_cpu = gld_predictions_pcs.cpu().numpy()
-            gld_predictions = val_dataset.dataset.inverse_transform(gld_predictions_pcs_cpu)
-
-        # crop at max depth
-        T_predictions = gld_predictions[0][min_depth : max_depth + 1, :]
-        S_predictions = gld_predictions[1][min_depth : max_depth + 1, :]
-        return T_predictions, S_predictions
-
-    T_pred1, S_pred1 = get_glider_predictions(trained_model, val_loader, gld_tensor1, device)
-    T_pred2, S_pred2 = get_glider_predictions(trained_model, val_loader, gld_tensor2, device)
-    T_pred3, S_pred3 = get_glider_predictions(trained_model, val_loader, gld_tensor3, device)
-    T_pred4, S_pred4 = get_glider_predictions(trained_model, val_loader, gld_tensor4, device)
+    T_pred1, S_pred1 = get_glider_predictions(
+        trained_model,
+        val_loader,
+        gld_tensor1,
+        device,
+        val_dataset.dataset.inverse_transform,
+        max_depth=pred_max_depth,
+    )
+    T_pred2, S_pred2 = get_glider_predictions(
+        trained_model,
+        val_loader,
+        gld_tensor2,
+        device,
+        val_dataset.dataset.inverse_transform,
+        max_depth=pred_max_depth,
+    )
+    T_pred3, S_pred3 = get_glider_predictions(
+        trained_model,
+        val_loader,
+        gld_tensor3,
+        device,
+        val_dataset.dataset.inverse_transform,
+        max_depth=pred_max_depth,
+    )
+    T_pred4, S_pred4 = get_glider_predictions(
+        trained_model,
+        val_loader,
+        gld_tensor4,
+        device,
+        val_dataset.dataset.inverse_transform,
+        max_depth=pred_max_depth,
+    )
 
     pred_depths = np.arange(0, pred_max_depth + 1, 1)
-
-    def bin_data(data, bin_size):
-        """
-        Bin data vertically to a given bin size.
-
-        Args:
-        - data (np.array): Data to be binned.
-        - bin_size (int): Size of each bin.
-
-        Returns:
-        - np.array: Binned data.
-        """
-        n_rows = data.shape[0] // bin_size
-        binned_data = np.mean(data[: n_rows * bin_size].reshape(n_rows, bin_size, -1), axis=1)
-        return binned_data
 
     # Define the bin size
     bin_size = 5
@@ -1687,36 +1846,6 @@ if __name__ == "__main__":
     )
     plt.tight_layout()  # Adjusts subplot params so that subplots fit into the figure area
     plt.show()
-
-    def calculate_correlation(observation, prediction):
-        """
-        Calculate the Pearson correlation coefficient between two 2D matrices,
-        ignoring positions with NaNs in the observation matrix.
-
-        Args:
-        - observation (np.array): 2D array of observed data with NaNs for missing values.
-        - prediction (np.array): 2D array of predicted data.
-
-        Returns:
-        - float: Pearson correlation coefficient, or NaN if it cannot be calculated.
-        """
-        # Flatten the arrays to 1D
-        obs_flat = observation.flatten()
-        pred_flat = prediction.flatten()
-
-        # Create a mask for non-NaN values
-        valid_mask = ~np.isnan(obs_flat)
-
-        # Filter both arrays to include only the valid (non-NaN) values
-        valid_obs = obs_flat[valid_mask]
-        valid_pred = pred_flat[valid_mask]
-
-        # Calculate the Pearson correlation coefficient on the non-NaN values
-        if valid_obs.size == 0:
-            return np.nan  # Return NaN if no valid observations
-        correlation, _ = pearsonr(valid_obs, valid_pred)
-
-        return correlation
 
     def average_depth(targets, depths):
         return np.nansum(targets.T * depths) / np.nansum(targets)
@@ -2126,64 +2255,28 @@ if __name__ == "__main__":
     print(
         "Depth range \t NeSPReSO 1.1 T RMSE \t GEM T RMSE \t NeSPReSO 1.0 T RMSE \t ISOP T RMSE \t NeSPReSO 1.1 T Bias \t GEM T Bias \t NeSPReSO 1.0 T Bias \t ISOP T Bias \t NeSPReSO 1.1 S RMSE \t GEM S RMSE \t NeSPReSO 1.0 S RMSE \t ISOP S RMSE \t NeSPReSO 1.1 S Bias \t GEM S Bias \t NeSPReSO 1.0 S Bias \t ISOP S Bias \t NeSPReSO 1.1 T R^2 \t GEM T R^2 \t NeSPReSO 1.0 T R^2 \t NeSPReSO 1.1 S R^2 \t GEM S R^2 \t NeSPReSO 1.0 S R^2"
     )
-    intervals = [
-        (min_depth, 20),
-        (20, 100),
-        (100, 200),
-        (200, 500),
-        (500, 1000),
-        (1000, max_depth),
-        (0, 1000),
-        (min_depth, max_depth),
-    ]
+    intervals = default_depth_intervals(min_depth, max_depth)
 
-    for i in range(len(intervals)):
-        min_d, max_d = intervals[i]
-        i_isop_dpt = np.where((isop_depths >= min_d) & (isop_depths <= max_d))[0]
-        calc_depths = isop_depths[i_isop_dpt].astype(int)
-        # NN
-        # gem_temp_errors = (gem_temp.T - original_profiles[:, 0, :]) ** 2
-        # gem_sal_errors = (gem_sal.T - original_profiles[:, 1, :]) ** 2
-
-        # nn_temp_errors = (pred_T[:, :] - original_profiles[:, 0, :]) ** 2
-        # nn_sal_errors = (pred_S[:, :] - original_profiles[:, 1, :]) ** 2
-        ori_t = original_profiles[calc_depths, 0, :]
-        ori_s = original_profiles[calc_depths, 1, :]
-        nn_t = pred_T[calc_depths, :]
-        nn_s = pred_S[calc_depths, :]
-        gem_t = gem_temp[:, calc_depths].T
-        gem_s = gem_sal[:, calc_depths].T
-        mlr_t = temp_MLR_profiles[calc_depths, :]
-        mlr_s = sal_MLR_profiles[calc_depths, :]
-
-        nn_t_rmse = rmse(nn_t, ori_t)
-        gem_t_rmse = rmse(gem_t, ori_t)
-        nn_t_bias = bias(nn_t, ori_t)
-        gem_t_bias = bias(gem_t, ori_t)
-        nn_s_rmse = rmse(nn_s, ori_s)
-        gem_s_rmse = rmse(gem_s, ori_s)
-        nn_s_bias = bias(nn_s, ori_s)
-        gem_s_bias = bias(gem_s, ori_s)
-
-        mlr_t_rmse = rmse(mlr_t, ori_t)
-        mlr_t_bias = bias(mlr_t, ori_t)
-        mlr_s_rmse = rmse(mlr_s, ori_s)
-        mlr_s_bias = bias(mlr_s, ori_s)
-
-        isop_avg_t_rmse = np.mean(ist.rmse.values[i_isop_dpt])
-        isop_avg_t_bias = np.mean(ist.bias.values[i_isop_dpt])
-        isop_avg_s_rmse = np.mean(iss.rmse.values[i_isop_dpt])
-        isop_avg_s_bias = np.mean(iss.bias.values[i_isop_dpt])
-
-        nn_T_corr = calculate_correlation(nn_t, ori_t)
-        gem_T_corr = calculate_correlation(gem_t, ori_t)
-        nn_S_corr = calculate_correlation(nn_s, ori_s)
-        gem_S_corr = calculate_correlation(gem_s, ori_s)
-        mlr_T_corr = calculate_correlation(mlr_t, ori_t)
-        mlr_S_corr = calculate_correlation(mlr_s, ori_s)
+    for min_d, max_d in intervals:
+        metrics = compute_depth_interval_metrics(
+            min_d,
+            max_d,
+            isop_depths,
+            ist.rmse.values,
+            ist.bias.values,
+            iss.rmse.values,
+            iss.bias.values,
+            original_profiles,
+            pred_T,
+            pred_S,
+            gem_temp,
+            gem_sal,
+            temp_MLR_profiles,
+            sal_MLR_profiles,
+        )
 
         print(
-            f"[{min_d}-{max_d}] \t {nn_t_rmse:.3f} \t {gem_t_rmse:.3f} \t {mlr_t_rmse:.3f} \t {isop_avg_t_rmse:.3f} \t {nn_t_bias:.3f} \t {gem_t_bias:.3f} \t {mlr_t_bias:.3f} \t {isop_avg_t_bias:.3f} \t {nn_s_rmse:.3f} \t {gem_s_rmse:.3f} \t {mlr_s_rmse:.3f} \t {isop_avg_s_rmse:.3f} \t {nn_s_bias:.3f} \t {gem_s_bias:.3f} \t {mlr_s_bias:.3f} \t {isop_avg_s_bias:.3f} \t {nn_T_corr:.3f} \t {gem_T_corr:.3f} \t {mlr_T_corr:.3f} \t {nn_S_corr:.3f} \t {gem_S_corr:.3f} \t {mlr_S_corr:.3f}"
+            f"[{metrics['min_d']}-{metrics['max_d']}] \t {metrics['nn_t_rmse']:.3f} \t {metrics['gem_t_rmse']:.3f} \t {metrics['mlr_t_rmse']:.3f} \t {metrics['isop_avg_t_rmse']:.3f} \t {metrics['nn_t_bias']:.3f} \t {metrics['gem_t_bias']:.3f} \t {metrics['mlr_t_bias']:.3f} \t {metrics['isop_avg_t_bias']:.3f} \t {metrics['nn_s_rmse']:.3f} \t {metrics['gem_s_rmse']:.3f} \t {metrics['mlr_s_rmse']:.3f} \t {metrics['isop_avg_s_rmse']:.3f} \t {metrics['nn_s_bias']:.3f} \t {metrics['gem_s_bias']:.3f} \t {metrics['mlr_s_bias']:.3f} \t {metrics['isop_avg_s_bias']:.3f} \t {metrics['nn_T_corr']:.3f} \t {metrics['gem_T_corr']:.3f} \t {metrics['mlr_T_corr']:.3f} \t {metrics['nn_S_corr']:.3f} \t {metrics['gem_S_corr']:.3f} \t {metrics['mlr_S_corr']:.3f}"
         )
         # print(f"[{min_d}-{max_d}] \t {nn_t_rmse:.3f} \t {gem_t_rmse:.3f} \t {isop_avg_t_rmse:.3f} \t {nn_t_bias:.3f} \t {gem_t_bias:.3f} \t {isop_avg_t_bias:.3f} \t {nn_s_rmse:.3f} \t {gem_s_rmse:.3f} \t {isop_avg_s_rmse:.3f} \t {nn_s_bias:.3f} \t {gem_s_bias:.3f} \t {isop_avg_s_bias:.3f} \t {nn_T_corr:.3f} \t {gem_T_corr:.3f} \t {nn_S_corr:.3f} \t {gem_S_corr:.3f}")
         # print("\hline")
