@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 
 from nespreso.analysis.correlation import calculate_correlation
 from nespreso.metrics import bias, rmse
 
 
-def isop_depth_indices(isop_depths, min_d, max_d):
+def isop_depth_indices(isop_depths: np.ndarray, min_d: float, max_d: float) -> np.ndarray:
     return np.where((isop_depths >= min_d) & (isop_depths <= max_d))[0]
 
 
-def default_depth_intervals(min_depth, max_depth):
+def default_depth_intervals(min_depth: float, max_depth: float) -> list[tuple[float, float]]:
     return [
         (min_depth, 20),
         (20, 100),
@@ -25,29 +27,31 @@ def default_depth_intervals(min_depth, max_depth):
     ]
 
 
-def compute_season_masked_depth_rmse_bias(residual, season_mask):
+def compute_season_masked_depth_rmse_bias(
+    residual: np.ndarray, season_mask: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     rmse_by_depth = np.sqrt(np.nanmean((residual[:, season_mask]) ** 2, axis=1))
     bias_by_depth = np.nanmean(residual[:, season_mask], axis=1)
     return rmse_by_depth, bias_by_depth
 
 
 def compute_depth_interval_metrics(
-    min_d,
-    max_d,
-    isop_depths,
-    ist_rmse_values,
-    ist_bias_values,
-    iss_rmse_values,
-    iss_bias_values,
-    original_profiles,
-    pred_T,
-    pred_S,
-    gem_temp,
-    gem_sal,
-    temp_MLR_profiles,
-    sal_MLR_profiles,
-    correlation_fn=calculate_correlation,
-):
+    min_d: float,
+    max_d: float,
+    isop_depths: np.ndarray,
+    ist_rmse_values: np.ndarray,
+    ist_bias_values: np.ndarray,
+    iss_rmse_values: np.ndarray,
+    iss_bias_values: np.ndarray,
+    original_profiles: np.ndarray,
+    pred_T: np.ndarray,
+    pred_S: np.ndarray,
+    gem_temp: np.ndarray,
+    gem_sal: np.ndarray,
+    temp_MLR_profiles: np.ndarray,
+    sal_MLR_profiles: np.ndarray,
+    correlation_fn: Callable[[np.ndarray, np.ndarray], float] = calculate_correlation,
+) -> dict[str, float]:
     i_isop_dpt = isop_depth_indices(isop_depths, min_d, max_d)
     calc_depths = isop_depths[i_isop_dpt].astype(int)
     ori_t = original_profiles[calc_depths, 0, :]

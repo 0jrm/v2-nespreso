@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 
 from nespreso.analysis.correlation import calculate_correlation
 
 
-def average_depth(targets, depths):
+def average_depth(targets: np.ndarray, depths: np.ndarray) -> float:
     return np.nansum(targets.T * depths) / np.nansum(targets)
 
 
-def histogram_available_depths(targets):
+def histogram_available_depths(targets: np.ndarray) -> np.ndarray:
     # counts all the available depths from all profiles
     return np.sum(-1 * (np.isnan(targets) - 1), axis=1)
 
@@ -38,7 +40,13 @@ def _predictions_for_correlation(predictions, targets, depths, step):
     return pred_binned
 
 
-def equivalent_average_statistic(predictions, targets, count, depths, function):
+def equivalent_average_statistic(
+    predictions: np.ndarray,
+    targets: np.ndarray,
+    count: np.ndarray,
+    depths: np.ndarray,
+    function: Callable[[np.ndarray, np.ndarray], float],
+) -> tuple[float, float]:
     """
     Adjusts the calculation of an average statistic (e.g., RMSE or bias) to account for the
     depth binning of the primary dataset and uses the histogram of valid measurements to weight

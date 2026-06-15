@@ -11,7 +11,15 @@ from nespreso.physics_metrics import (
 )
 
 
-def compute_density_profiles(T_profiles, S_profiles, lat_arr, lon_arr, depth_arr, model_name, pres_data=None):
+def compute_density_profiles(
+    T_profiles: np.ndarray,
+    S_profiles: np.ndarray,
+    lat_arr: np.ndarray,
+    lon_arr: np.ndarray,
+    depth_arr: np.ndarray,
+    model_name: str,
+    pres_data: np.ndarray | None = None,
+) -> np.ndarray:
     """Compute density profiles from T/S using EOS."""
     n_prof, n_depth = T_profiles.shape
     rho_profiles = np.full((n_prof, n_depth), np.nan)
@@ -44,7 +52,7 @@ def compute_density_profiles(T_profiles, S_profiles, lat_arr, lon_arr, depth_arr
     return rho_profiles
 
 
-def compute_stability_metrics(rho_profiles, depth_arr, model_name):
+def compute_stability_metrics(rho_profiles: np.ndarray, depth_arr: np.ndarray, model_name: str):
     """Compute static stability metrics for a set of profiles."""
     # Reshape to (n_profiles, depth) - already in correct format
     # metrics functions expect depth as last axis
@@ -52,7 +60,13 @@ def compute_stability_metrics(rho_profiles, depth_arr, model_name):
     return stability
 
 
-def compute_smoothness_metrics(rho_profiles, depth_arr, model_name, zmin=50.0, zmax=300.0):
+def compute_smoothness_metrics(
+    rho_profiles: np.ndarray,
+    depth_arr: np.ndarray,
+    model_name: str,
+    zmin: float = 50.0,
+    zmax: float = 300.0,
+):
     """Compute density smoothness metrics for a set of profiles."""
     smoothness = density_smoothness_metrics(rho_profiles, depth_arr, zmin=zmin, zmax=zmax, axis=-1)
     return smoothness

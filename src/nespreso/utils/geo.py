@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 
-def haversine(lat1, lon1, lat2, lon2):
+def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
     Calculate the great circle distance in kilometers between two points
     on the earth (specified in decimal degrees)
@@ -22,7 +22,7 @@ def haversine(lat1, lon1, lat2, lon2):
     return c * r
 
 
-def calculate_distances(latitudes, longitudes):
+def calculate_distances(latitudes: np.ndarray, longitudes: np.ndarray) -> np.ndarray:
     """Calculate the cumulative distance between successive lat/long pairs."""
     n = len(latitudes)
     distances = np.zeros(n)

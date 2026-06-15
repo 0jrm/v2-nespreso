@@ -11,7 +11,7 @@ from nespreso.determinism import get_device
 DEVICE = get_device()
 
 
-def prepare_features(inputs_array, max_degree=3):
+def prepare_features(inputs_array: np.ndarray, max_degree: int = 3) -> np.ndarray:
     """
     Prepare the feature matrix for regression by including polynomial terms.
 
@@ -28,7 +28,7 @@ def prepare_features(inputs_array, max_degree=3):
     return X
 
 
-def fit_pcs_regression_exact_gpu(X, pcs):
+def fit_pcs_regression_exact_gpu(X: np.ndarray, pcs: np.ndarray) -> torch.Tensor:
     """
     Fit regression models to predict principal component scores from features using exact least squares on GPU.
 
@@ -55,7 +55,7 @@ def fit_pcs_regression_exact_gpu(X, pcs):
     return beta
 
 
-def predict_pcs_exact_gpu(beta, X_new):
+def predict_pcs_exact_gpu(beta: torch.Tensor, X_new: np.ndarray) -> np.ndarray:
     """
     Predict principal component scores using the exact coefficients on GPU.
 

@@ -6,7 +6,7 @@ import numpy as np
 from scipy.stats import pearsonr
 
 
-def calculate_correlation(observation, prediction):
+def calculate_correlation(observation: np.ndarray, prediction: np.ndarray) -> float:
     """
     Calculate the Pearson correlation coefficient between two 2D matrices,
     ignoring positions with NaNs in the observation matrix.

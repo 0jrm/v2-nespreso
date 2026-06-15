@@ -113,7 +113,7 @@ These are load-bearing for numerical parity with the research monolith; do not �
 ## Monolith status
 
 - **Still required by:** `tests/monolith_loader.py` (golden pins), `runner._load_monolith()` (pickle class paths), characterization tests.
-- **`__main__`:** delegates to `run_training` → `build_validation_context` → experiment runners; large commented blocks await Phase 9 dead-code review.
+- **`__main__`:** delegates to `run_training` → `build_validation_context` → experiment runners (~130 lines; commented dead blocks removed in Phase 9).
 - **Retirement criteria (Phase 9):** no production import of monolith symbols; pickles re-saved with `nespreso.data.dataset.TemperatureSalinityDataset`; characterization goldens pass against package-only path.
 
 ## Verification

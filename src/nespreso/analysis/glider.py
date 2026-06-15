@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 import torch
 
 
-def get_glider_predictions(model, loader, tensor, device, inverse_transform, max_depth=1004, min_depth=0):
+def get_glider_predictions(
+    model: torch.nn.Module,
+    loader,
+    tensor: torch.Tensor,
+    device: torch.device,
+    inverse_transform: Callable[..., tuple[np.ndarray, np.ndarray]],
+    max_depth: int = 1004,
+    min_depth: int = 0,
+) -> tuple[np.ndarray, np.ndarray]:
     tensor = tensor.to(device)
 
     # Get predictions
@@ -22,7 +32,7 @@ def get_glider_predictions(model, loader, tensor, device, inverse_transform, max
     return T_predictions, S_predictions
 
 
-def bin_data(data, bin_size):
+def bin_data(data: np.ndarray, bin_size: int) -> np.ndarray:
     """
     Bin data vertically to a given bin size.
 

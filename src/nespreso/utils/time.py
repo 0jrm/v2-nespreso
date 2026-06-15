@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import numpy as np
+
 
 def datenum_to_datetime(matlab_datenum: float) -> datetime:
     """
@@ -21,12 +23,12 @@ def matlab2datetime(matlab_datenum: float) -> datetime:
     return datenum_to_datetime(matlab_datenum)
 
 
-def get_month(t) -> int:
+def get_month(t: datetime | float) -> int:
     """Return calendar month from a datetime or MATLAB datenum."""
     return t.month if hasattr(t, "month") else datenum_to_datetime(t).month
 
 
-def get_season(date) -> str:
+def get_season(date: datetime) -> str:
     """Map a datetime to meteorological season (Northern Hemisphere)."""
     month = date.month
     if month in [3, 4, 5]:
@@ -38,7 +40,7 @@ def get_season(date) -> str:
     return "Winter"
 
 
-def datenums_to_datetimes(matlab_datenums):
+def datenums_to_datetimes(matlab_datenums: np.ndarray) -> list[datetime]:
     """
     Convert an array of MATLAB datenum values to Python datetime objects.
 
