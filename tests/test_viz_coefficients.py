@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 import torch
 
-from tests.monolith_loader import load_monolith
+from nespreso.viz.coefficients import plot_coefficients_heatmap
 
 TOL = 1e-6
 GOLDEN_FILE = Path(__file__).parent / "golden" / "viz_coefficients_synthetic.json"
@@ -32,7 +32,6 @@ def _load_golden():
 
 @pytest.fixture
 def coefficients_fixture():
-    load_monolith()
     np.random.seed(300)
     torch.manual_seed(300)
     beta = torch.tensor(
@@ -49,13 +48,12 @@ def coefficients_fixture():
 
 
 def test_plot_coefficients_heatmap_normalized_artifacts(coefficients_fixture):
-    m = load_monolith()
     beta, feature_names = coefficients_fixture
     golden = _load_golden()
 
     plt.close("all")
     with patch("matplotlib.pyplot.show"):
-        m.plot_coefficients_heatmap(beta, feature_names, "test coefficients heatmap", normalize=True, threshold=1e-4)
+        plot_coefficients_heatmap(beta, feature_names, "test coefficients heatmap", normalize=True, threshold=1e-4)
 
     ax = plt.figure(plt.get_fignums()[0]).axes[0]
     arr = np.asarray(ax.collections[0].get_array()).ravel()
@@ -69,13 +67,12 @@ def test_plot_coefficients_heatmap_normalized_artifacts(coefficients_fixture):
 
 
 def test_plot_coefficients_heatmap_unnormalized_artifacts(coefficients_fixture):
-    m = load_monolith()
     beta, feature_names = coefficients_fixture
     golden = _load_golden()
 
     plt.close("all")
     with patch("matplotlib.pyplot.show"):
-        m.plot_coefficients_heatmap(
+        plot_coefficients_heatmap(
             beta, feature_names, "test coefficients heatmap", normalize=False, threshold=0.2
         )
 

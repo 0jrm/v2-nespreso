@@ -15,7 +15,16 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from tests.monolith_loader import load_monolith
+from nespreso.analysis import (
+    bin_data,
+    calculate_correlation,
+    compute_depth_interval_metrics,
+    compute_depth_rmse_bias,
+    compute_season_masked_depth_rmse_bias,
+    default_depth_intervals,
+    get_glider_predictions,
+)
+from nespreso.models.mlp import PredictionModel
 
 TOL = 1e-6
 GOLDEN_FILE = Path(__file__).parent / "golden" / "analysis_synthetic.json"
@@ -25,52 +34,42 @@ def _load_golden():
     return json.loads(GOLDEN_FILE.read_text())
 
 
-@pytest.fixture
-def monolith_module():
-    return load_monolith()
-
-
-def test_bin_data_golden(monolith_module):
-    m = monolith_module
+def test_bin_data_golden():
     golden = _load_golden()
     np.random.seed(401)
     data = np.arange(50, dtype=float).reshape(10, 5) + np.random.randn(10, 5) * 0.01
-    binned = m.bin_data(data, 5)
+    binned = bin_data(data, 5)
     assert np.allclose(binned, golden["bin_data"], rtol=0, atol=TOL)
 
 
-def test_calculate_correlation_golden(monolith_module):
-    m = monolith_module
+def test_calculate_correlation_golden():
     golden = _load_golden()
     obs = np.array([[1.0, 2.0, np.nan], [4.0, 5.0, 6.0]])
     pred = np.array([[1.1, 2.2, 3.3], [3.9, 5.1, 6.2]])
-    corr = m.calculate_correlation(obs, pred)
+    corr = calculate_correlation(obs, pred)
     assert np.allclose(corr, golden["calculate_correlation"], rtol=0, atol=TOL)
 
 
-def test_compute_depth_rmse_bias_golden(monolith_module):
-    m = monolith_module
+def test_compute_depth_rmse_bias_golden():
     golden = _load_golden()["depth_rmse_bias"]
     np.random.seed(402)
     resid = np.random.randn(8, 6)
-    rmse_d, bias_d = m.compute_depth_rmse_bias(resid, axis=1)
+    rmse_d, bias_d = compute_depth_rmse_bias(resid, axis=1)
     assert np.allclose(rmse_d[:4], golden["rmse_head"], rtol=0, atol=TOL)
     assert np.allclose(bias_d[:4], golden["bias_head"], rtol=0, atol=TOL)
 
 
-def test_compute_season_masked_depth_rmse_bias_golden(monolith_module):
-    m = monolith_module
+def test_compute_season_masked_depth_rmse_bias_golden():
     golden = _load_golden()["season_masked"]
     np.random.seed(402)
     resid = np.random.randn(8, 6)
     mask = np.array([True, False, True, True, False, True])
-    rmse_d, bias_d = m.compute_season_masked_depth_rmse_bias(resid, mask)
+    rmse_d, bias_d = compute_season_masked_depth_rmse_bias(resid, mask)
     assert np.allclose(rmse_d[:4], golden["rmse_head"], rtol=0, atol=TOL)
     assert np.allclose(bias_d[:4], golden["bias_head"], rtol=0, atol=TOL)
 
 
-def test_compute_depth_interval_metrics_golden(monolith_module):
-    m = monolith_module
+def test_compute_depth_interval_metrics_golden():
     golden = _load_golden()["depth_interval_metrics"]
     np.random.seed(403)
     depths = np.arange(0, 8)
@@ -86,7 +85,7 @@ def test_compute_depth_interval_metrics_golden(monolith_module):
     iss_rmse = np.linspace(0.05, 0.4, 8)
     iss_bias = np.linspace(-0.02, 0.02, 8)
 
-    metrics = m.compute_depth_interval_metrics(
+    metrics = compute_depth_interval_metrics(
         1,
         6,
         depths,
@@ -118,17 +117,16 @@ def _fake_inverse(pcs):
     return t.T, s.T
 
 
-def test_get_glider_predictions_golden(monolith_module):
-    m = monolith_module
+def test_get_glider_predictions_golden():
     golden = _load_golden()["glider_predictions"]
     torch.manual_seed(404)
     device = torch.device("cpu")
     inputs = torch.randn(3, 4)
-    model = m.PredictionModel(input_dim=4, layers_config=[6], output_dim=4, dropout_prob=0.0)
+    model = PredictionModel(input_dim=4, layers_config=[6], output_dim=4, dropout_prob=0.0)
     model.eval()
     loader = DataLoader(TensorDataset(inputs, inputs), batch_size=3)
 
-    T_pred, S_pred = m.get_glider_predictions(
+    T_pred, S_pred = get_glider_predictions(
         model, loader, inputs, device, _fake_inverse, max_depth=10, min_depth=1
     )
 
@@ -138,9 +136,8 @@ def test_get_glider_predictions_golden(monolith_module):
     assert np.allclose(S_pred[:3, 0], golden["S_head"], rtol=0, atol=TOL)
 
 
-def test_default_depth_intervals_shape(monolith_module):
-    m = monolith_module
-    intervals = m.default_depth_intervals(20, 1800)
+def test_default_depth_intervals_shape():
+    intervals = default_depth_intervals(20, 1800)
     assert len(intervals) == 8
     assert intervals[0] == (20, 20)
     assert intervals[-1] == (20, 1800)

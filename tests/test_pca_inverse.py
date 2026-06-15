@@ -31,13 +31,14 @@ from sklearn.base import InconsistentVersionWarning
 from nespreso.config import load_config
 from nespreso.data.dataset import TemperatureSalinityDataset
 from nespreso.data.pca import sklearn_inverse_transform_pcs
-from nespreso.runner import _load_dataset_pickle
-from tests.monolith_loader import load_monolith
+from nespreso.data.pickle_compat import load_dataset_pickle
+from nespreso.losses import CombinedPCALoss, PCALoss
 
 TOL = 1e-6
 # PCALoss stores sklearn stats in float32; allow slightly wider bound vs float64 sklearn.
 TORCH_SKLEARN_TOL = 5e-6
 GOLDEN_DIR = Path(__file__).parent / "golden"
+MONOLITH_PATH = Path(__file__).resolve().parents[1] / "singleFileModel_SAT_stats4verticalProj_meeting20260203.py"
 
 
 def _make_pca_holder(pca_temp, pca_sal):
@@ -60,12 +61,11 @@ def _make_dataset_shell(pca_temp, pca_sal, temp_pcs, sal_pcs, n_components, temp
 
 
 def test_sklearn_variants_equivalent_on_synthetic(fitted_pca_pair):
-    """Module, dataset, and API-local sklearn paths must agree on identical PCAs."""
+    """Canonical sklearn, dataset, and API-local sklearn paths must agree on identical PCAs."""
     pca_temp, pca_sal, temp_pcs, sal_pcs, n_components = fitted_pca_pair
     pcs = np.hstack([temp_pcs, sal_pcs])
-    m = load_monolith()
 
-    module_t, module_s = m.inverse_transform(pcs, pca_temp, pca_sal, n_components)
+    canonical_t, canonical_s = sklearn_inverse_transform_pcs(pcs, pca_temp, pca_sal, n_components)
 
     ds = _make_dataset_shell(
         pca_temp,
@@ -76,27 +76,25 @@ def test_sklearn_variants_equivalent_on_synthetic(fitted_pca_pair):
     )
     dataset_t, dataset_s = ds.inverse_transform(pcs)
 
-    # Local duplicate of inverse_transform_api (monolith:1259)
     api_t, api_s = sklearn_inverse_transform_pcs(pcs, pca_temp, pca_sal, n_components)
 
-    assert module_t.shape == (pca_temp.n_features_in_, pcs.shape[0])
-    assert module_s.shape == (pca_sal.n_features_in_, pcs.shape[0])
-    assert np.nanmax(np.abs(module_t - dataset_t)) < TOL
-    assert np.nanmax(np.abs(module_s - dataset_s)) < TOL
-    assert np.nanmax(np.abs(module_t - api_t)) < TOL
-    assert np.nanmax(np.abs(module_s - api_s)) < TOL
+    assert canonical_t.shape == (pca_temp.n_features_in_, pcs.shape[0])
+    assert canonical_s.shape == (pca_sal.n_features_in_, pcs.shape[0])
+    assert np.nanmax(np.abs(canonical_t - dataset_t)) < TOL
+    assert np.nanmax(np.abs(canonical_s - dataset_s)) < TOL
+    assert np.nanmax(np.abs(canonical_t - api_t)) < TOL
+    assert np.nanmax(np.abs(canonical_s - api_s)) < TOL
 
 
 def test_pca_loss_torch_matches_sklearn(fitted_pca_pair):
     """PCALoss torch reconstruction equals sklearn inverse (layout differs by transpose)."""
     pca_temp, pca_sal, temp_pcs, sal_pcs, n_components = fitted_pca_pair
     pcs = np.hstack([temp_pcs, sal_pcs])
-    m = load_monolith()
     holder = _make_pca_holder(pca_temp, pca_sal)
 
-    sklearn_t, sklearn_s = m.inverse_transform(pcs, pca_temp, pca_sal, n_components)
+    sklearn_t, sklearn_s = sklearn_inverse_transform_pcs(pcs, pca_temp, pca_sal, n_components)
 
-    pca_loss = m.PCALoss(holder, holder, n_components)
+    pca_loss = PCALoss(holder, holder, n_components)
     device = pca_loss.temp_components.device
     temp_pcs_t = torch.tensor(pcs[:, :n_components], dtype=torch.float32, device=device)
     sal_pcs_t = torch.tensor(pcs[:, n_components:], dtype=torch.float32, device=device)
@@ -114,13 +112,12 @@ def test_combined_pca_loss_reconstruct_matches_pca_loss(fitted_pca_pair):
     """CombinedPCALoss._reconstruct_profiles matches PCALoss per-field reconstruction."""
     pca_temp, pca_sal, temp_pcs, sal_pcs, n_components = fitted_pca_pair
     pcs = np.hstack([temp_pcs, sal_pcs])
-    m = load_monolith()
     holder = _make_pca_holder(pca_temp, pca_sal)
     weights = np.ones(2 * n_components, dtype=np.float64)
 
-    pca_loss = m.PCALoss(holder, holder, n_components)
+    pca_loss = PCALoss(holder, holder, n_components)
     device = pca_loss.temp_components.device
-    combined = m.CombinedPCALoss(
+    combined = CombinedPCALoss(
         temp_pca=holder,
         sal_pca=holder,
         n_components=n_components,
@@ -159,8 +156,7 @@ def test_get_profiles_pca_approx_uses_inverse_transform(fitted_pca_pair, synthet
 
 def test_nested_main_inverse_transform_removed():
     """Dead main-block inverse_transform duplicate was removed from the monolith."""
-    m = load_monolith()
-    source = Path(m.__file__).read_text()
+    source = MONOLITH_PATH.read_text()
     assert source.count("def inverse_transform(pcs, pca_temp, pca_sal, n_components):") == 1
     assert "sklearn_inverse_transform_pcs" in source
     assert "Inverse the PCA transformation to reconstruct temperature and salinity profiles." not in source
@@ -177,8 +173,7 @@ def test_dataset_inverse_transform_golden(request, fitted_pca_pair):
     if not Path(cfg.paths.dataset_pickle).exists():
         pytest.skip("dataset pickle not present")
 
-    m = load_monolith()
-    data = _load_dataset_pickle(m, cfg.paths.dataset_pickle)
+    data = load_dataset_pickle(cfg.paths.dataset_pickle)
     ds = data["full_dataset"]
     n_components = ds.pca_temp.n_components_
     if not hasattr(ds, "n_components"):
@@ -230,8 +225,7 @@ def test_inverse_transform_api_golden(request):
     if not Path(cfg.paths.dataset_pickle).exists():
         pytest.skip("dataset pickle not present")
 
-    m = load_monolith()
-    data = _load_dataset_pickle(m, cfg.paths.dataset_pickle)
+    data = load_dataset_pickle(cfg.paths.dataset_pickle)
     ds = data["full_dataset"]
     n_components = ds.pca_temp.n_components_
     if not hasattr(ds, "n_components"):

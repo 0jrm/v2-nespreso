@@ -17,9 +17,15 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pytest
 
-from tests.monolith_loader import load_monolith
+from nespreso.viz.maps import (
+    calculate_average_in_bin,
+    plot_bin_map,
+    plot_comparison_maps,
+    plot_residual_profiles_for_top_bins,
+    plot_rmse_on_ax,
+)
+from nespreso.viz.profiles import calculate_bias, filter_by_season, visualize_combined_results
 
 TOL = 1e-6
 GOLDEN_DIR = Path(__file__).parent / "golden"
@@ -28,12 +34,10 @@ PROFILES_GOLDEN = GOLDEN_DIR / "viz_profiles_synthetic.json"
 PLOT_GOLDEN = GOLDEN_DIR / "viz_plot_artifacts.json"
 
 
-def _configure_profile_depth_globals(m, min_depth=20, max_depth=45):
-    """``calculate_bias`` reads module-level depth globals (monolith parity)."""
+def _configure_profile_depth_globals(min_depth=20, max_depth=45):
+    """``calculate_bias`` reads module-level depth globals in ``viz.profiles``."""
     import nespreso.viz.profiles as viz_profiles
 
-    m.min_depth = min_depth
-    m.max_depth = max_depth
     viz_profiles.min_depth = min_depth
     viz_profiles.max_depth = max_depth
 
@@ -56,9 +60,7 @@ def _assert_grid_close(actual, expected):
             assert np.allclose(a, e, rtol=0, atol=TOL)
 
 
-@pytest.fixture
 def viz_maps_fixture():
-    load_monolith()
     np.random.seed(100)
     lon_bins = np.array([-95.0, -93.0, -91.0])
     lat_bins = np.array([20.0, 22.0, 24.0])
@@ -69,10 +71,8 @@ def viz_maps_fixture():
     return lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range
 
 
-@pytest.fixture
 def viz_profiles_fixture():
-    m = load_monolith()
-    _configure_profile_depth_globals(m)
+    _configure_profile_depth_globals()
     np.random.seed(102)
     min_d, max_d = 20, 45
     depth_n = max_d - min_d + 1
@@ -81,20 +81,18 @@ def viz_profiles_fixture():
     gem_sal = np.random.randn(4, depth_n)
     pred0 = np.random.randn(depth_n, 4)
     pred1 = np.random.randn(depth_n, 4)
-    return m, true_values, [pred0, pred1], gem_temp, gem_sal
+    return true_values, [pred0, pred1], gem_temp, gem_sal
 
 
-@pytest.fixture
 def viz_bias_fixture():
-    m = load_monolith()
-    _configure_profile_depth_globals(m)
+    _configure_profile_depth_globals()
     np.random.seed(101)
     true_values = np.random.randn(26, 2, 4)
     gem_temp = np.random.randn(4, 26)
     gem_sal = np.random.randn(4, 26)
     pred0 = np.random.randn(26, 4)
     pred1 = np.random.randn(26, 4)
-    return m, true_values, [pred0, pred1], gem_temp, gem_sal
+    return true_values, [pred0, pred1], gem_temp, gem_sal
 
 
 def _fig_summary():
@@ -123,15 +121,14 @@ def _fig_summary():
     return out
 
 
-def test_calculate_average_in_bin_golden(viz_maps_fixture):
-    m = load_monolith()
-    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture
+def test_calculate_average_in_bin_golden():
+    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture()
     golden = _load_json(MAPS_GOLDEN)
 
-    avg_rmse, num_prof = m.calculate_average_in_bin(
+    avg_rmse, num_prof = calculate_average_in_bin(
         lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range=dpt_range, is_rmse=True
     )
-    avg_bias, num_prof_b = m.calculate_average_in_bin(
+    avg_bias, num_prof_b = calculate_average_in_bin(
         lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range=dpt_range, is_rmse=False
     )
 
@@ -150,11 +147,11 @@ def _assert_collection_head(actual_head, expected_head):
             assert np.allclose(a, e, rtol=0, atol=TOL)
 
 
-def test_calculate_bias_golden(viz_bias_fixture):
-    m, true_values, predicted_values, gem_temp, gem_sal = viz_bias_fixture
+def test_calculate_bias_golden():
+    true_values, predicted_values, gem_temp, gem_sal = viz_bias_fixture()
     golden = _load_json(PROFILES_GOLDEN)
 
-    nn_t, nn_s, gem_t, gem_s = m.calculate_bias(true_values, predicted_values, gem_temp, gem_sal)
+    nn_t, nn_s, gem_t, gem_s = calculate_bias(true_values, predicted_values, gem_temp, gem_sal)
 
     assert np.allclose(nn_t[:3, :2], golden["nn_t_bias_head"], rtol=0, atol=TOL)
     assert np.allclose(nn_s[:3, :2], golden["nn_s_bias_head"], rtol=0, atol=TOL)
@@ -163,16 +160,15 @@ def test_calculate_bias_golden(viz_bias_fixture):
 
 
 def test_filter_by_season_golden():
-    m = load_monolith()
     golden = _load_json(PROFILES_GOLDEN)
     dates = [735964.0, 736055.0, 736146.0, 736237.0]
 
-    assert m.filter_by_season(list(range(4)), dates, "Winter") == golden["winter_indices"]
-    assert m.filter_by_season(list(range(4)), dates, "Summer") == golden["summer_indices"]
+    assert filter_by_season(list(range(4)), dates, "Winter") == golden["winter_indices"]
+    assert filter_by_season(list(range(4)), dates, "Summer") == golden["summer_indices"]
 
 
-def test_visualize_combined_results_plot_artifacts(viz_profiles_fixture):
-    m, true_values, predicted_values, gem_temp, gem_sal = viz_profiles_fixture
+def test_visualize_combined_results_plot_artifacts():
+    true_values, predicted_values, gem_temp, gem_sal = viz_profiles_fixture()
     golden = _load_json(PLOT_GOLDEN)["visualize_combined_results"]
     sst = np.array([28.1, 27.5, 29.0, 28.3])
     ssh = np.array([0.12, -0.05, 0.33, 0.08])
@@ -180,7 +176,7 @@ def test_visualize_combined_results_plot_artifacts(viz_profiles_fixture):
     plt.close("all")
     np.random.seed(1020)
     with patch("matplotlib.pyplot.show"):
-        m.visualize_combined_results(
+        visualize_combined_results(
             true_values,
             gem_temp,
             gem_sal,
@@ -202,18 +198,17 @@ def test_visualize_combined_results_plot_artifacts(viz_profiles_fixture):
     assert summary[0]["suptitle"] == golden[0]["suptitle"]
 
 
-def test_plot_bin_map_plot_artifacts(viz_maps_fixture):
-    m = load_monolith()
-    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture
+def test_plot_bin_map_plot_artifacts():
+    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture()
     golden = _load_json(PLOT_GOLDEN)["plot_bin_map"]
 
-    avg_rmse, num_prof = m.calculate_average_in_bin(
+    avg_rmse, num_prof = calculate_average_in_bin(
         lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range=dpt_range, is_rmse=True
     )
 
     plt.close("all")
     with patch("matplotlib.pyplot.show"):
-        m.plot_bin_map(lon_bins, lat_bins, avg_rmse, num_prof, "Temperature", "RMSE")
+        plot_bin_map(lon_bins, lat_bins, avg_rmse, num_prof, "Temperature", "RMSE")
 
     summary = _fig_summary()
     assert summary[0]["naxes"] == golden[0]["naxes"]
@@ -223,14 +218,13 @@ def test_plot_bin_map_plot_artifacts(viz_maps_fixture):
     )
 
 
-def test_plot_rmse_on_ax_annotations(viz_maps_fixture):
+def test_plot_rmse_on_ax_annotations():
     import cartopy.crs as ccrs
 
-    m = load_monolith()
-    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture
+    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture()
     golden = _load_json(PLOT_GOLDEN)["plot_rmse_on_ax"]
 
-    avg_rmse, num_prof = m.calculate_average_in_bin(
+    avg_rmse, num_prof = calculate_average_in_bin(
         lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range=dpt_range, is_rmse=True
     )
     lon_centers = (lon_bins[:-1] + lon_bins[1:]) / 2
@@ -239,22 +233,21 @@ def test_plot_rmse_on_ax_annotations(viz_maps_fixture):
     plt.close("all")
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-    m.plot_rmse_on_ax(ax, lon_centers, lat_centers, avg_rmse, num_prof, "test title")
+    plot_rmse_on_ax(ax, lon_centers, lat_centers, avg_rmse, num_prof, "test title")
 
     assert ax.get_title() == golden["title"]
     assert len(ax.lines) == golden["nlines"]
     assert len(ax.texts) == golden["ntexts"]
 
 
-def test_plot_comparison_maps_plot_artifacts(viz_maps_fixture):
-    m = load_monolith()
-    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture
+def test_plot_comparison_maps_plot_artifacts():
+    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture()
     golden = _load_json(PLOT_GOLDEN)["plot_comparison_maps"]
 
-    avg_rmse, _ = m.calculate_average_in_bin(
+    avg_rmse, _ = calculate_average_in_bin(
         lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range=dpt_range, is_rmse=True
     )
-    avg_bias, _ = m.calculate_average_in_bin(
+    avg_bias, _ = calculate_average_in_bin(
         lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range=dpt_range, is_rmse=False
     )
     lon_c = (lon_bins[:-1] + lon_bins[1:]) / 2
@@ -262,7 +255,7 @@ def test_plot_comparison_maps_plot_artifacts(viz_maps_fixture):
 
     plt.close("all")
     with patch("matplotlib.pyplot.show"):
-        m.plot_comparison_maps(lon_c, lat_c, avg_rmse, avg_bias, "temperature", "GEM")
+        plot_comparison_maps(lon_c, lat_c, avg_rmse, avg_bias, "temperature", "GEM")
 
     summary = _fig_summary()
     assert summary[0]["naxes"] == golden[0]["naxes"]
@@ -272,12 +265,11 @@ def test_plot_comparison_maps_plot_artifacts(viz_maps_fixture):
     )
 
 
-def test_plot_residual_profiles_for_top_bins_plot_artifacts(viz_maps_fixture):
-    m = load_monolith()
-    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture
+def test_plot_residual_profiles_for_top_bins_plot_artifacts():
+    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range = viz_maps_fixture()
     golden = _load_json(PLOT_GOLDEN)["plot_residual_profiles_for_top_bins"]
 
-    avg_rmse, num_prof = m.calculate_average_in_bin(
+    avg_rmse, num_prof = calculate_average_in_bin(
         lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range=dpt_range, is_rmse=True
     )
     np.random.seed(103)
@@ -285,7 +277,7 @@ def test_plot_residual_profiles_for_top_bins_plot_artifacts(viz_maps_fixture):
 
     plt.close("all")
     with patch("matplotlib.pyplot.show"):
-        m.plot_residual_profiles_for_top_bins(
+        plot_residual_profiles_for_top_bins(
             lon_bins,
             lat_bins,
             lon_val,

@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from tests.monolith_loader import load_monolith
+from nespreso.viz.fields import plot_field, plot_field_subplot
 
 TOL = 1e-6
 GOLDEN_FILE = Path(__file__).parent / "golden" / "viz_fields_synthetic.json"
@@ -31,7 +31,6 @@ def _load_golden():
 
 @pytest.fixture
 def field_grid_fixture():
-    load_monolith()
     np.random.seed(200)
     n_dist, n_depth = 12, 10
     distances = np.linspace(0, 120, n_dist)
@@ -41,13 +40,12 @@ def field_grid_fixture():
 
 
 def test_plot_field_temperature_artifacts(field_grid_fixture):
-    m = load_monolith()
     distances, depths, data = field_grid_fixture
     golden = _load_golden()["plot_field_temperature"]
 
     plt.close("all")
     with patch("matplotlib.pyplot.show"):
-        m.plot_field(data, distances, depths, "Temperature", "test temperature field")
+        plot_field(data, distances, depths, "Temperature", "test temperature field")
 
     fig = plt.figure(plt.get_fignums()[0])
     ax = fig.axes[0]
@@ -59,13 +57,12 @@ def test_plot_field_temperature_artifacts(field_grid_fixture):
 
 
 def test_plot_field_salinity_artifacts(field_grid_fixture):
-    m = load_monolith()
     distances, depths, data = field_grid_fixture
     golden = _load_golden()["plot_field_salinity"]
 
     plt.close("all")
     with patch("matplotlib.pyplot.show"):
-        m.plot_field(data + 15, distances, depths, "Salinity", "test salinity field")
+        plot_field(data + 15, distances, depths, "Salinity", "test salinity field")
 
     fig = plt.figure(plt.get_fignums()[0])
     ax = fig.axes[0]
@@ -75,13 +72,12 @@ def test_plot_field_salinity_artifacts(field_grid_fixture):
 
 
 def test_plot_field_subplot_temperature_artifacts(field_grid_fixture):
-    m = load_monolith()
     distances, depths, data = field_grid_fixture
     golden = _load_golden()["plot_field_subplot_temperature"]
 
     plt.close("all")
     fig = plt.figure(figsize=(8, 6))
-    m.plot_field_subplot(data, distances, depths, "Temperature", "Glider T", 111, fig)
+    plot_field_subplot(data, distances, depths, "Temperature", "Glider T", 111, fig)
 
     ax = fig.axes[0]
     assert ax.get_title() == golden["title"]
@@ -92,13 +88,12 @@ def test_plot_field_subplot_temperature_artifacts(field_grid_fixture):
 
 
 def test_plot_field_subplot_t_difference_artifacts(field_grid_fixture):
-    m = load_monolith()
     distances, depths, data = field_grid_fixture
     golden = _load_golden()["plot_field_subplot_t_diff"]
 
     plt.close("all")
     fig = plt.figure(figsize=(8, 6))
-    m.plot_field_subplot(data - 20, distances, depths, "T Difference", "T Difference", 111, fig)
+    plot_field_subplot(data - 20, distances, depths, "T Difference", "T Difference", 111, fig)
 
     ax = fig.axes[0]
     assert ax.get_title() == golden["title"]
@@ -107,7 +102,6 @@ def test_plot_field_subplot_t_difference_artifacts(field_grid_fixture):
 
 
 def test_plot_field_invalid_variable_raises(field_grid_fixture):
-    m = load_monolith()
     distances, depths, data = field_grid_fixture
     with pytest.raises(ValueError, match="Invalid variable name"):
-        m.plot_field(data, distances, depths, "Density", "bad")
+        plot_field(data, distances, depths, "Density", "bad")

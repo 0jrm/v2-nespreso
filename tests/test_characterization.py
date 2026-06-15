@@ -22,6 +22,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from nespreso.config import AppConfig, density_penalty_dict, load_config
+from nespreso.data.pca import sklearn_inverse_transform_pcs
 from nespreso.data.pickle_compat import load_dataset_pickle
 from nespreso.data.splits import split_dataset
 from nespreso.determinism import get_device, set_seed
@@ -29,7 +30,6 @@ from nespreso.losses import CombinedPCALoss
 from nespreso.models.mlp import PredictionModel
 from nespreso.runner import apply_runtime_globals
 from nespreso.train import train_model
-from tests.monolith_loader import load_monolith
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
 TOL = 1e-6
@@ -38,8 +38,7 @@ GOLDEN_TRAIN_EPOCHS = 5
 
 def _capture_short_train_trajectory(cfg: AppConfig) -> list[dict[str, float]]:
     """Run a deterministic short training loop for golden characterization."""
-    m = load_monolith()
-    apply_runtime_globals(cfg, m)
+    apply_runtime_globals(cfg)
 
     model_cfg = cfg.model
     input_params = asdict(cfg.input_params)
@@ -106,8 +105,7 @@ def _capture_short_train_trajectory(cfg: AppConfig) -> list[dict[str, float]]:
 def test_inverse_transform_roundtrip(fitted_pca_pair):
     pca_temp, pca_sal, temp_pcs, sal_pcs, n_components = fitted_pca_pair
     pcs = np.hstack([temp_pcs, sal_pcs])
-    m = load_monolith()
-    temp_profiles, sal_profiles = m.inverse_transform(pcs, pca_temp, pca_sal, n_components)
+    temp_profiles, sal_profiles = sklearn_inverse_transform_pcs(pcs, pca_temp, pca_sal, n_components)
     assert temp_profiles.shape[0] == pca_temp.n_features_in_
     assert sal_profiles.shape[0] == pca_sal.n_features_in_
     recon_temp = pca_temp.inverse_transform(pcs[:, :n_components]).T

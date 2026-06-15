@@ -15,7 +15,9 @@ import numpy as np
 import pytest
 import torch
 
-from tests.monolith_loader import load_monolith
+from nespreso.determinism import get_device
+from nespreso.losses import CombinedPCALoss, make_loss
+from nespreso.models.mlp import PredictionModel
 
 TOL = 1e-6
 GOLDEN_DIR = Path(__file__).parent / "golden"
@@ -55,12 +57,11 @@ def _load_golden():
 def test_combined_pca_loss_forward_golden(seeded_pca_pair):
     """Pin CombinedPCALoss scalar and reconstructed profile heads."""
     pca_temp, pca_sal, n_components, pred_np, target_np = _synthetic_loss_batch(seeded_pca_pair)
-    m = load_monolith()
     holder = SimpleNamespace(pca_temp=pca_temp, pca_sal=pca_sal)
     weights = np.ones(2 * n_components, dtype=np.float64)
-    device = m.DEVICE
+    device = get_device()
 
-    combined = m.CombinedPCALoss(
+    combined = CombinedPCALoss(
         temp_pca=holder,
         sal_pca=holder,
         n_components=n_components,
@@ -93,10 +94,9 @@ def test_combined_pca_loss_forward_golden(seeded_pca_pair):
 def test_prediction_model_forward_golden():
     """Pin PredictionModel forward on a fixed input (dropout disabled)."""
     torch.manual_seed(42)
-    m = load_monolith()
-    device = m.DEVICE
+    device = get_device()
 
-    model = m.PredictionModel(input_dim=5, layers_config=[16, 8], output_dim=6, dropout_prob=0.0)
+    model = PredictionModel(input_dim=5, layers_config=[16, 8], output_dim=6, dropout_prob=0.0)
     model.eval()
     model.to(device)
 
@@ -110,15 +110,12 @@ def test_prediction_model_forward_golden():
 
 def test_make_loss_matches_manual_combined(seeded_pca_pair):
     """make_loss factory must build the same criterion as manual CombinedPCALoss."""
-    from nespreso.losses import make_loss
-
     pca_temp, pca_sal, n_components, pred_np, target_np = _synthetic_loss_batch(seeded_pca_pair)
-    m = load_monolith()
     holder = SimpleNamespace(pca_temp=pca_temp, pca_sal=pca_sal)
     weights = np.ones(2 * n_components, dtype=np.float64)
-    device = m.DEVICE
+    device = get_device()
 
-    manual = m.CombinedPCALoss(
+    manual = CombinedPCALoss(
         temp_pca=holder,
         sal_pca=holder,
         n_components=n_components,
