@@ -31,6 +31,7 @@ Branch:
 | `density_stability.py` | `run_density_stability` — vertical density/stability/smoothness comparison plots |
 | `glider_mission.py` | `run_glider_mission` — four glider crossings + AVISO overlay maps |
 | `validation_maps.py` | `run_validation_maps` — binned RMSE/bias maps, seasonal depth curves, comparison maps |
+| `steric_depth_stats.py` | `run_steric_depth_stats` — steric-height / ISOP depth-bin T/S std pcolormesh (full + August) |
 | `common.py` | `build_experiment_parser`, `load_cfg_and_artifacts`, matplotlib setup |
 
 ### Runnable scripts (`experiments/`)
@@ -40,8 +41,9 @@ Branch:
 - `experiments/density_stability.py`
 - `experiments/glider_mission.py`
 - `experiments/validation_maps.py`
+- `experiments/steric_depth_stats.py`
 
-Monolith `__main__` delegates to `build_validation_context` + the experiment runners above. Steric-height, depth-interval tables, and monthly distribution remain inline until peeled.
+Monolith `__main__` delegates to `build_validation_context` + the experiment runners above. Depth-interval tables and monthly distribution remain inline until peeled.
 
 ### Pin tests added
 
@@ -72,9 +74,8 @@ srun --ntasks=1 --cpus-per-task=8 --gres=gpu:1 \
 
 Remaining inline `__main__` blocks to peel per `phase8.txt`:
 
-1. `experiments/steric_depth_stats.py` — steric-height / ISOP depth-bin orchestration (~lines 433–933)
-2. `experiments/compare_legacy_nespreso.py` — timing / ensemble / legacy 1.0 load (now in `validation_context`; may split)
-3. `experiments/monthly_distribution.py` — train/val/test profiles-per-month bar chart
+1. `experiments/compare_legacy_nespreso.py` — timing / ensemble / legacy 1.0 load (now in `validation_context`; may split)
+2. `experiments/monthly_distribution.py` — train/val/test profiles-per-month bar chart
 
 Then Phase 9: dead-code pass, `ARCHITECTURE.md`, monolith retirement.
 
