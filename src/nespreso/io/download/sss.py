@@ -19,10 +19,10 @@ def download_sss_smap(
     password: str | None = None,
 ) -> None:
     """
-    Day-loop SSS download with bbox filtering.
+      Day-loop SSS download with bbox filtering.
 
-    Uses copernicusmarine (SMAP RSS local files remain readable via
-  ``satellite_readers.get_sss_by_date`` when already on disk).
+      Uses copernicusmarine (SMAP RSS local files remain readable via
+    ``satellite_readers.get_sss_by_date`` when already on disk).
     """
     current = start_date
     while current <= end_date:

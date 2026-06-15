@@ -53,32 +53,32 @@ def download_aviso(
 
             if year < 2022:
                 args = (
-                    f'--motu http://my.cmems-du.eu/motu-web/Motu '
-                    f'--service-id SEALEVEL_GLO_PHY_L4_MY_008_047-TDS '
-                    f'--product-id cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.25deg_P1D '
-                    f'--longitude-min {bbox.min_lon} --longitude-max {bbox.max_lon} '
-                    f'--latitude-min {bbox.min_lat} --latitude-max {bbox.max_lat} '
+                    f"--motu http://my.cmems-du.eu/motu-web/Motu "
+                    f"--service-id SEALEVEL_GLO_PHY_L4_MY_008_047-TDS "
+                    f"--product-id cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.25deg_P1D "
+                    f"--longitude-min {bbox.min_lon} --longitude-max {bbox.max_lon} "
+                    f"--latitude-min {bbox.min_lat} --latitude-max {bbox.max_lat} "
                     f'--date-min "{year}-{month:02d}-01 00:00:00" '
                     f'--date-max "{year}-{month:02d}-{monthrange(year, month)[1]} 00:00:00" '
-                    f'--variable sla --variable adt --variable ugos --variable vgos '
-                    f'--variable ugosa --variable vgosa --variable err_sla '
-                    f'--out-dir {output_folder} --out-name {outfile.name} '
-                    f'--user {username} --pwd {password}'
+                    f"--variable sla --variable adt --variable ugos --variable vgos "
+                    f"--variable ugosa --variable vgosa --variable err_sla "
+                    f"--out-dir {output_folder} --out-name {outfile.name} "
+                    f"--user {username} --pwd {password}"
                 )
             else:
                 args = (
-                    f'--motu http://nrt.cmems-du.eu/motu-web/Motu '
-                    f'--service-id SEALEVEL_GLO_PHY_L4_NRT_OBSERVATIONS_008_046-TDS '
-                    f'--product-id dataset-duacs-nrt-global-merged-allsat-phy-l4 '
-                    f'--longitude-min {bbox.min_lon} --longitude-max {bbox.max_lon} '
-                    f'--latitude-min {bbox.min_lat} --latitude-max {bbox.max_lat} '
+                    f"--motu http://nrt.cmems-du.eu/motu-web/Motu "
+                    f"--service-id SEALEVEL_GLO_PHY_L4_NRT_OBSERVATIONS_008_046-TDS "
+                    f"--product-id dataset-duacs-nrt-global-merged-allsat-phy-l4 "
+                    f"--longitude-min {bbox.min_lon} --longitude-max {bbox.max_lon} "
+                    f"--latitude-min {bbox.min_lat} --latitude-max {bbox.max_lat} "
                     f'--date-min "{year}-{month:02d}-01 00:00:00" '
                     f'--date-max "{year}-{month:02d}-{monthrange(year, month)[1]} 00:00:00" '
-                    f'--variable adt --variable err_sla --variable err_ugosa --variable err_vgosa '
-                    f'--variable flag_ice --variable sla --variable ugos --variable ugosa '
-                    f'--variable vgos --variable vgosa '
-                    f'--out-dir {output_folder} --out-name {outfile.name} '
-                    f'--user {username} --pwd {password}'
+                    f"--variable adt --variable err_sla --variable err_ugosa --variable err_vgosa "
+                    f"--variable flag_ice --variable sla --variable ugos --variable ugosa "
+                    f"--variable vgos --variable vgosa "
+                    f"--out-dir {output_folder} --out-name {outfile.name} "
+                    f"--user {username} --pwd {password}"
                 )
 
             print(f"[AVISO] Downloading {outfile.name}")

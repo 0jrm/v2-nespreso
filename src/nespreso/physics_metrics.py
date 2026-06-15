@@ -7,6 +7,7 @@ import warnings
 # Utilities
 # -----------------------------#
 
+
 def _ensure_array(x):
     return np.asarray(x, dtype=float)
 
@@ -36,9 +37,7 @@ def centered_diff(a, dx, axis=-1):
     a_minus = a[tuple(slc_minus)]
     # Only compute where both values are finite
     valid = np.isfinite(a_plus) & np.isfinite(a_minus)
-    out[tuple(slc_center)] = np.where(valid,
-        (a_plus - a_minus) / (2.0 * dx),
-        np.nan)
+    out[tuple(slc_center)] = np.where(valid, (a_plus - a_minus) / (2.0 * dx), np.nan)
 
     # left boundary (forward)
     slc0 = list(slc)
@@ -48,9 +47,7 @@ def centered_diff(a, dx, axis=-1):
     a0 = a[tuple(slc0)]
     a1 = a[tuple(slc1)]
     valid = np.isfinite(a0) & np.isfinite(a1)
-    out[tuple(slc0)] = np.where(valid,
-        (a1 - a0) / dx,
-        np.nan)
+    out[tuple(slc0)] = np.where(valid, (a1 - a0) / dx, np.nan)
 
     # right boundary (backward)
     slc_last = list(slc)
@@ -60,9 +57,7 @@ def centered_diff(a, dx, axis=-1):
     a_last = a[tuple(slc_last)]
     a_lastm1 = a[tuple(slc_lastm1)]
     valid = np.isfinite(a_last) & np.isfinite(a_lastm1)
-    out[tuple(slc_last)] = np.where(valid,
-        (a_last - a_lastm1) / dx,
-        np.nan)
+    out[tuple(slc_last)] = np.where(valid, (a_last - a_lastm1) / dx, np.nan)
 
     return out
 
@@ -93,9 +88,7 @@ def second_derivative(a, dx, axis=-1):
     a_minus = a[tuple(slc_minus)]
     # Only compute where all three values are finite
     valid = np.isfinite(a_center) & np.isfinite(a_plus) & np.isfinite(a_minus)
-    out[tuple(slc_center)] = np.where(valid,
-        (a_plus - 2.0 * a_center + a_minus) / (dx**2),
-        np.nan)
+    out[tuple(slc_center)] = np.where(valid, (a_plus - 2.0 * a_center + a_minus) / (dx**2), np.nan)
 
     # boundaries: copy nearest interior value (if finite)
     slc0 = list(slc)
@@ -130,9 +123,7 @@ def spearmanr(a, b):
         ranks = np.empty_like(order, dtype=float)
         ranks[order] = np.arange(len(x))
         # average ties
-        vals, idx_start, counts = np.unique(
-            x[order], return_index=True, return_counts=True
-        )
+        vals, idx_start, counts = np.unique(x[order], return_index=True, return_counts=True)
         for s, c in zip(idx_start, counts):
             if c > 1:
                 avg = (2 * s + c - 1) / 2.0
@@ -171,9 +162,9 @@ def angle_between(u1, v1, u2, v2):
 def smooth_vertical_profile(data, z, window_m=10.0, axis=-1):
     """
     Smooth vertical profile using Hanning window convolution.
-    
+
     Applies padding: edge mode at surface (top), reflect mode at bottom.
-    
+
     Parameters
     ----------
     data : array_like
@@ -184,7 +175,7 @@ def smooth_vertical_profile(data, z, window_m=10.0, axis=-1):
         Window size in meters.
     axis : int, default=-1
         Axis along which to smooth (depth axis).
-    
+
     Returns
     -------
     smoothed : ndarray
@@ -196,18 +187,18 @@ def smooth_vertical_profile(data, z, window_m=10.0, axis=-1):
 
     data = _ensure_array(data)
     z = _ensure_array(z)
-    
+
     if z.ndim != 1:
         raise ValueError("Depth array z must be 1D")
-    
+
     # Move depth axis to last position for easier manipulation
     data_moved = np.moveaxis(data, axis, -1)
     original_shape = data_moved.shape
     n_depth = data_moved.shape[-1]
-    
+
     if n_depth != z.size:
         raise ValueError(f"Depth axis size ({n_depth}) must match z.size ({z.size})")
-    
+
     # Calculate window size in grid points
     dz_mean = float(np.nanmean(np.diff(z)))
     if dz_mean <= 0 or not np.isfinite(dz_mean):
@@ -217,37 +208,37 @@ def smooth_vertical_profile(data, z, window_m=10.0, axis=-1):
         if dz_mean <= 0 or not np.isfinite(dz_mean):
             # No valid spacing, return original data
             return data
-    
+
     window_points = max(3, int(np.round(window_m / dz_mean)))
     if window_points % 2 == 0:
         window_points += 1  # Ensure odd for symmetric window
-    
+
     if window_points >= n_depth:
         # Window too large, use all points
         window_points = n_depth if n_depth % 2 == 1 else n_depth - 1
-    
+
     # Create Hanning window
     window = np.hanning(window_points)
     window = window / np.sum(window)  # Normalize
-    
+
     # Reshape to 2D: (all_other_dims, depth)
     data_2d = data_moved.reshape(-1, n_depth)
     smoothed_2d = np.full_like(data_2d, np.nan)
-    
+
     # Pad each profile: edge at top (surface), reflect at bottom
     pad_size = window_points // 2
     for i in range(data_2d.shape[0]):
         prof = data_2d[i, :]
-        
+
         # Pad: edge mode at beginning (surface), reflect at end (bottom)
         if pad_size > 0:
             # Top padding: replicate first (surface) value
             top_pad = np.full(pad_size, prof[0], dtype=prof.dtype)
-            
+
             # Bottom padding: reflect last values
             if n_depth > 1:
                 # Take last few values and create reflection pattern
-                bottom_vals = prof[-min(pad_size + 1, n_depth):]
+                bottom_vals = prof[-min(pad_size + 1, n_depth) :]
                 # Create reflection: reverse and append original
                 if len(bottom_vals) > 1:
                     bottom_pad = np.concatenate([bottom_vals[-2::-1], bottom_vals])
@@ -259,27 +250,27 @@ def smooth_vertical_profile(data, z, window_m=10.0, axis=-1):
             else:
                 # Single depth level, replicate
                 bottom_pad = np.full(pad_size, prof[-1], dtype=prof.dtype)
-            
+
             # Concatenate: top_pad + prof + bottom_pad
             prof_padded = np.concatenate([top_pad, prof, bottom_pad])
         else:
             # No padding needed
             prof_padded = prof
-        
+
         # Convolve
-        smoothed_prof = np.convolve(prof_padded, window, mode='valid')
-        
+        smoothed_prof = np.convolve(prof_padded, window, mode="valid")
+
         # Handle NaN: only smooth where original data is finite
         finite_mask = np.isfinite(prof)
         if np.any(finite_mask):
             smoothed_2d[i, :] = np.where(finite_mask, smoothed_prof, np.nan)
         else:
             smoothed_2d[i, :] = prof
-    
+
     # Reshape back and move axis back
     smoothed_moved = smoothed_2d.reshape(original_shape)
     smoothed = np.moveaxis(smoothed_moved, -1, axis)
-    
+
     return smoothed
 
 
@@ -331,13 +322,10 @@ def eos_from_SP_T(SP, T, p, lon=None, lat=None):
         SA = SP.astype(float)
         CT = T.astype(float)
         rho0 = 1027.0
-        alpha = 0.25   # thermal expansion [kg/m^3/K]
-        beta = 0.75    # haline contraction [kg/m^3/(g/kg)]
-        gamma = 4.5e-3 # compressibility [kg/m^3/dbar]
-        rho = (rho0
-               - alpha * (CT - 10.0)
-               + beta * (SA - 35.0)
-               + gamma * (p - 0.0))
+        alpha = 0.25  # thermal expansion [kg/m^3/K]
+        beta = 0.75  # haline contraction [kg/m^3/(g/kg)]
+        gamma = 4.5e-3  # compressibility [kg/m^3/dbar]
+        rho = rho0 - alpha * (CT - 10.0) + beta * (SA - 35.0) + gamma * (p - 0.0)
 
     return SA, CT, rho
 
@@ -345,6 +333,7 @@ def eos_from_SP_T(SP, T, p, lon=None, lat=None):
 # -----------------------------#
 # Vertical physics metrics
 # -----------------------------#
+
 
 def brunt_vaisala_N2_from_rho(rho, z, axis=-1, g=9.81, use_rho_local=False):
     """
@@ -367,7 +356,7 @@ def brunt_vaisala_N2_from_rho(rho, z, axis=-1, g=9.81, use_rho_local=False):
 
     dz = np.gradient(z, axis=axis)
     drho = np.gradient(rho, axis=axis)
-    
+
     # NaN-safe division: set to NaN where dz is zero or invalid
     dz_safe = np.where(np.abs(dz) > 1e-10, dz, np.nan)
     drho_dz = np.where(np.isfinite(dz_safe), drho / dz_safe, np.nan)
@@ -375,19 +364,16 @@ def brunt_vaisala_N2_from_rho(rho, z, axis=-1, g=9.81, use_rho_local=False):
     if use_rho_local:
         # NaN-safe: set to NaN where rho is invalid or zero
         rho_safe = np.where((np.abs(rho) > 1e-10) & np.isfinite(rho), rho, np.nan)
-        N2 = np.where(np.isfinite(rho_safe) & np.isfinite(drho_dz),
-                      (g / rho_safe) * drho_dz, np.nan)
+        N2 = np.where(np.isfinite(rho_safe) & np.isfinite(drho_dz), (g / rho_safe) * drho_dz, np.nan)
     else:
         # Suppress "Mean of empty slice" warning when all values are NaN
         # This is expected behavior for profiles with no valid data
         with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', 'Mean of empty slice', RuntimeWarning)
+            warnings.filterwarnings("ignore", "Mean of empty slice", RuntimeWarning)
             rho_ref = np.nanmean(rho, axis=axis, keepdims=True)
         # NaN-safe: set to NaN where rho_ref is invalid or zero
-        rho_ref_safe = np.where((np.abs(rho_ref) > 1e-10) & np.isfinite(rho_ref),
-                                rho_ref, np.nan)
-        N2 = np.where(np.isfinite(rho_ref_safe) & np.isfinite(drho_dz),
-                      (g / rho_ref_safe) * drho_dz, np.nan)
+        rho_ref_safe = np.where((np.abs(rho_ref) > 1e-10) & np.isfinite(rho_ref), rho_ref, np.nan)
+        N2 = np.where(np.isfinite(rho_ref_safe) & np.isfinite(drho_dz), (g / rho_ref_safe) * drho_dz, np.nan)
 
     return N2
 
@@ -460,12 +446,12 @@ def static_stability_metrics(rho, z, axis=-1, g=9.81, hard_fail_threshold=-1e-5)
             unstable.append(False)
     unstable = np.array(unstable)
     frac_unstable = np.nanmean(unstable.astype(float)) if unstable.size > 0 else np.nan
-    
+
     # Soft unstable: N2 < 0 but > hard_fail_threshold
     soft_unstable_mask = (profs < 0.0) & (profs >= hard_fail_threshold) & profs_finite
     total_finite = np.sum(profs_finite)
     frac_soft_unstable = float(np.sum(soft_unstable_mask) / total_finite) if total_finite > 0 else np.nan
-    
+
     # Global minimum of finite values
     min_N2 = np.nanmin(profs)
 
@@ -496,9 +482,7 @@ def static_stability_metrics(rho, z, axis=-1, g=9.81, hard_fail_threshold=-1e-5)
     )
 
 
-def density_smoothness_metrics(rho, z,
-                               zmin=50.0, zmax=300.0,
-                               axis=-1):
+def density_smoothness_metrics(rho, z, zmin=50.0, zmax=300.0, axis=-1):
     """
     Smoothness diagnostics in a depth window [zmin, zmax].
 
@@ -531,10 +515,9 @@ def density_smoothness_metrics(rho, z,
     profs = d2.reshape(-1, n_depth)
 
     # NaN-safe variance of curvature
-    var_per_prof = np.array([
-        np.nanvar(profs[i, :]) if np.any(np.isfinite(profs[i, :])) else np.nan
-        for i in range(profs.shape[0])
-    ])
+    var_per_prof = np.array(
+        [np.nanvar(profs[i, :]) if np.any(np.isfinite(profs[i, :])) else np.nan for i in range(profs.shape[0])]
+    )
     var_d2_mean = np.nanmean(var_per_prof)
 
     # inflection points = sign changes in curvature (NaN-safe)
@@ -561,6 +544,7 @@ def density_smoothness_metrics(rho, z,
 # -----------------------------#
 # Horizontal physics diagnostics
 # -----------------------------#
+
 
 def surface_geostrophic_velocity(eta, dx, dy, f, g=9.81):
     """
@@ -589,13 +573,12 @@ def surface_geostrophic_velocity(eta, dx, dy, f, g=9.81):
     d_eta_dy = centered_diff(eta, dy, axis=-2)
 
     u_g = -(g / f) * d_eta_dy
-    v_g =  (g / f) * d_eta_dx
+    v_g = (g / f) * d_eta_dx
 
     return u_g, v_g
 
 
-def thermal_wind_shear_from_rho(rho, z, dx, dy, f,
-                                rho0=1025.0, g=9.81, axis_z=-1):
+def thermal_wind_shear_from_rho(rho, z, dx, dy, f, rho0=1025.0, g=9.81, axis_z=-1):
     """
     Thermal-wind shear from density.
 
@@ -621,7 +604,7 @@ def thermal_wind_shear_from_rho(rho, z, dx, dy, f,
         f_arr = f_arr[..., None]
 
     du_dz = -(g / (f_arr * rho0)) * dρ_dy
-    dv_dz =  (g / (f_arr * rho0)) * dρ_dx
+    dv_dz = (g / (f_arr * rho0)) * dρ_dx
 
     # move derivative axis back
     du_dz = np.moveaxis(du_dz, -1, axis_z)
@@ -665,9 +648,7 @@ def integrate_shear_to_surface(du_dz, dv_dz, z, z_ref, axis_z=-1):
     return delta_u, delta_v
 
 
-def thermal_wind_metrics(rho, z, eta, dx, dy, f, z_ref,
-                         rho0=1025.0, g=9.81, axis_z=-1,
-                         shear_depth_limit=200.0):
+def thermal_wind_metrics(rho, z, eta, dx, dy, f, z_ref, rho0=1025.0, g=9.81, axis_z=-1, shear_depth_limit=200.0):
     """
     Thermal-wind based horizontal diagnostics.
 
@@ -694,9 +675,7 @@ def thermal_wind_metrics(rho, z, eta, dx, dy, f, z_ref,
     u_sfc, v_sfc = surface_geostrophic_velocity(eta, dx, dy, f, g=g)
 
     # shear from density
-    du_dz, dv_dz = thermal_wind_shear_from_rho(
-        rho, z, dx, dy, f, rho0=rho0, g=g, axis_z=axis_z
-    )
+    du_dz, dv_dz = thermal_wind_shear_from_rho(rho, z, dx, dy, f, rho0=rho0, g=g, axis_z=axis_z)
 
     # vertically integrated geostrophic shear
     delta_u, delta_v = integrate_shear_to_surface(du_dz, dv_dz, z, z_ref, axis_z=axis_z)
@@ -721,9 +700,7 @@ def thermal_wind_metrics(rho, z, eta, dx, dy, f, z_ref,
     mask_top = (z >= 0) & (z <= shear_depth_limit)
     if mask_top.any():
         top = np.trapz(abs_shear[..., mask_top], z[mask_top], axis=-1)
-        frac_top = float(
-            np.nanmean(top / (total + 1e-12))
-        )
+        frac_top = float(np.nanmean(top / (total + 1e-12)))
     else:
         frac_top = np.nan
 
@@ -742,10 +719,7 @@ def ekman_pumping(tau_x, tau_y, dx, dy, f, rho0=1025.0):
     tau_x = _ensure_array(tau_x)
     tau_y = _ensure_array(tau_y)
 
-    curl_tau = (
-        centered_diff(tau_y, dx, axis=-1)
-        - centered_diff(tau_x, dy, axis=-2)
-    )
+    curl_tau = centered_diff(tau_y, dx, axis=-1) - centered_diff(tau_x, dy, axis=-2)
 
     f_arr = _ensure_array(f)
     w_E = curl_tau / (rho0 * f_arr)
@@ -791,7 +765,7 @@ def isopycnal_depth(rho, z, sigma, axis_z=-1):
 
         z0 = z[k]
         z1 = z[k + 1]
-        denom = (d1 - d0)
+        denom = d1 - d0
         frac = np.zeros_like(d0, dtype=float)
 
         valid = mask & (denom != 0.0)
@@ -806,8 +780,7 @@ def isopycnal_depth(rho, z, sigma, axis_z=-1):
     return out
 
 
-def ekman_tilt_metrics(rho, z, tau_x, tau_y, dx, dy, f,
-                       sigma, rho0=1025.0, z_sigma_lagged=None):
+def ekman_tilt_metrics(rho, z, tau_x, tau_y, dx, dy, f, sigma, rho0=1025.0, z_sigma_lagged=None):
     """
     Ekman tilt diagnostics.
 
@@ -831,7 +804,7 @@ def ekman_tilt_metrics(rho, z, tau_x, tau_y, dx, dy, f,
           Regression slope of (-z_sigma) on w_E.
     """
     w_E = ekman_pumping(tau_x, tau_y, dx, dy, f, rho0=rho0)
-    
+
     if z_sigma_lagged is not None:
         z_sigma = z_sigma_lagged
     else:

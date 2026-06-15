@@ -13,9 +13,7 @@ def datenum_to_datetime(matlab_datenum: float) -> datetime:
     Year 0 is a leap year in the proleptic ISO calendar (+366 day correction).
     """
     days_from_year_0_to_year_1 = 366
-    return datetime.fromordinal(int(matlab_datenum) - days_from_year_0_to_year_1) + timedelta(
-        days=matlab_datenum % 1
-    )
+    return datetime.fromordinal(int(matlab_datenum) - days_from_year_0_to_year_1) + timedelta(days=matlab_datenum % 1)
 
 
 def matlab2datetime(matlab_datenum: float) -> datetime:

@@ -39,12 +39,8 @@ class PathsConfig:
     sss_folder: str = "/Net/work/ozavala/DATA/GOFFISH/SSS/SMAP_Global/"
     dataset_pickle: str = "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/config_dataset_full.pkl"
     saved_models_dir: str = "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models"
-    density_checkpoint: str = (
-        "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt"
-    )
-    density_stats: str = (
-        "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz"
-    )
+    density_checkpoint: str = "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt"
+    density_stats: str = "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz"
     isop_nc: str = "/unity/g2/jmiranda/SubsurfaceFields/Data/ISOP1_rmse_bias_1deg_maps.nc"
     trained_model_path: str = (
         "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models/"
@@ -92,12 +88,8 @@ class InputParams:
 @dataclass(frozen=True)
 class DensityConfig:
     enabled: bool = True
-    checkpoint: str = (
-        "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt"
-    )
-    stats_path: str = (
-        "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz"
-    )
+    checkpoint: str = "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt"
+    stats_path: str = "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz"
     stab_weight: float = 0.001
     smooth_weight: float = 0.001
     stability_tol: float = 1e-6
