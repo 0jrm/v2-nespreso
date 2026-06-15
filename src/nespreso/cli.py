@@ -7,9 +7,8 @@ from datetime import datetime
 from pathlib import Path
 
 from nespreso.config import load_config
-from nespreso.io.download.aviso import DownloadBbox, download_aviso
-from nespreso.io.download.copernicus import download_ostia_sst
-from nespreso.io.download.sss import download_sss_smap
+from nespreso.io.download.aviso import download_aviso
+from nespreso.io.download.copernicus import download_ostia_sst, download_sss_range
 from nespreso.runner import run_training
 
 
@@ -91,7 +90,10 @@ def main(argv: list[str] | None = None) -> int:
                 args.output,
                 args.start_year,
                 args.end_year,
-                DownloadBbox(args.min_lon, args.max_lon, args.min_lat, args.max_lat),
+                args.min_lon,
+                args.max_lon,
+                args.min_lat,
+                args.max_lat,
             )
         elif args.product == "ostia":
             download_ostia_sst(
@@ -104,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.max_lat,
             )
         elif args.product == "sss":
-            download_sss_smap(
+            download_sss_range(
                 args.output,
                 _parse_date(args.start),
                 _parse_date(args.end),

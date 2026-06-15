@@ -2,49 +2,8 @@
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, timedelta
 from pathlib import Path
-
-
-def download_ssh_year(
-    output_folder: str | Path,
-    year: int,
-    min_lon: float,
-    max_lon: float,
-    min_lat: float,
-    max_lat: float,
-    username: str | None = None,
-    password: str | None = None,
-) -> Path:
-    """Download one year of CMEMS allsat SSH (ported from NeSPReSO2 copernicus script)."""
-    import copernicusmarine as cm
-
-    output_folder = Path(output_folder)
-    output_folder.mkdir(parents=True, exist_ok=True)
-    output_file = output_folder / f"SSH_{year}.nc"
-    if output_file.exists():
-        print(f"[SSH] {year}: exists, skipping")
-        return output_file
-
-    start_date_str = f"{year}-01-01"
-    end_date_str = f"{year}-12-31"
-    ds = cm.open_dataset(
-        dataset_id="cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.25deg_P1D",
-        variables=["adt", "ugos", "vgos", "sla", "ugosa", "vgosa", "err_sla"],
-        minimum_longitude=min_lon,
-        maximum_longitude=max_lon,
-        minimum_latitude=min_lat,
-        maximum_latitude=max_lat,
-        start_datetime=start_date_str,
-        end_datetime=end_date_str,
-        username=username,
-        password=password,
-    )
-    ds.load()
-    ds.to_netcdf(output_file)
-    ds.close()
-    return output_file
 
 
 def download_sss_day(
@@ -84,6 +43,33 @@ def download_sss_day(
     ds.to_netcdf(output_file)
     ds.close()
     return output_file
+
+
+def download_sss_range(
+    output_folder: str | Path,
+    start_date: datetime,
+    end_date: datetime,
+    min_lon: float,
+    max_lon: float,
+    min_lat: float,
+    max_lat: float,
+    username: str | None = None,
+    password: str | None = None,
+) -> None:
+    """Day-loop SSS download with bbox filtering."""
+    current = start_date
+    while current <= end_date:
+        download_sss_day(
+            output_folder,
+            current,
+            min_lon,
+            max_lon,
+            min_lat,
+            max_lat,
+            username=username,
+            password=password,
+        )
+        current += timedelta(days=1)
 
 
 def download_ostia_sst(

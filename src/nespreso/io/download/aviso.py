@@ -2,28 +2,19 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 from calendar import monthrange
-from dataclasses import dataclass
 from pathlib import Path
-
-
-@dataclass(frozen=True)
-class DownloadBbox:
-    """Bounding box in degrees (lat/lon). Longitude may be 0-360 for CMEMS."""
-
-    min_lon: float
-    max_lon: float
-    min_lat: float
-    max_lat: float
 
 
 def download_aviso(
     output_folder: str | Path,
     start_year: int,
     end_year: int,
-    bbox: DownloadBbox,
+    min_lon: float,
+    max_lon: float,
+    min_lat: float,
+    max_lat: float,
     username: str | None = None,
     password: str | None = None,
     months: range | None = None,
@@ -56,8 +47,8 @@ def download_aviso(
                     f"--motu http://my.cmems-du.eu/motu-web/Motu "
                     f"--service-id SEALEVEL_GLO_PHY_L4_MY_008_047-TDS "
                     f"--product-id cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.25deg_P1D "
-                    f"--longitude-min {bbox.min_lon} --longitude-max {bbox.max_lon} "
-                    f"--latitude-min {bbox.min_lat} --latitude-max {bbox.max_lat} "
+                    f"--longitude-min {min_lon} --longitude-max {max_lon} "
+                    f"--latitude-min {min_lat} --latitude-max {max_lat} "
                     f'--date-min "{year}-{month:02d}-01 00:00:00" '
                     f'--date-max "{year}-{month:02d}-{monthrange(year, month)[1]} 00:00:00" '
                     f"--variable sla --variable adt --variable ugos --variable vgos "
@@ -70,8 +61,8 @@ def download_aviso(
                     f"--motu http://nrt.cmems-du.eu/motu-web/Motu "
                     f"--service-id SEALEVEL_GLO_PHY_L4_NRT_OBSERVATIONS_008_046-TDS "
                     f"--product-id dataset-duacs-nrt-global-merged-allsat-phy-l4 "
-                    f"--longitude-min {bbox.min_lon} --longitude-max {bbox.max_lon} "
-                    f"--latitude-min {bbox.min_lat} --latitude-max {bbox.max_lat} "
+                    f"--longitude-min {min_lon} --longitude-max {max_lon} "
+                    f"--latitude-min {min_lat} --latitude-max {max_lat} "
                     f'--date-min "{year}-{month:02d}-01 00:00:00" '
                     f'--date-max "{year}-{month:02d}-{monthrange(year, month)[1]} 00:00:00" '
                     f"--variable adt --variable err_sla --variable err_ugosa --variable err_vgosa "
