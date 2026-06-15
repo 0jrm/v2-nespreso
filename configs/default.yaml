@@ -1,0 +1,70 @@
+# NeSPReSO default configuration — reproduces GoM monolith behavior (20260203 base).
+paths:
+  argo_mat: /unity/g2/jmiranda/SubsurfaceFields/Data/ARGO_GoM_20220920.mat
+  aviso_folder: /unity/f1/ozavala/DATA/GOFFISH/AVISO/GoM/
+  sst_folder: /unity/f1/ozavala/DATA/GOFFISH/SST/OISST
+  sss_folder: /Net/work/ozavala/DATA/GOFFISH/SSS/SMAP_Global/
+  dataset_pickle: /unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/config_dataset_full.pkl
+  saved_models_dir: /unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models
+  density_checkpoint: /unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt
+  density_stats: /unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz
+  isop_nc: /unity/g2/jmiranda/SubsurfaceFields/Data/ISOP1_rmse_bias_1deg_maps.nc
+  trained_model_path: "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models/ocp_model_Test Loss: 0.9163_2025-11-16 10:03:45_sat.pth"
+
+bbox:
+  min_lat: 18.0
+  max_lat: 31.0
+  min_lon: -98.0
+  max_lon: -81.0
+  ex_lat: 23.0
+  ex_lon: -90.0
+
+model:
+  n_components: 15
+  layers_config: [512, 512]
+  batch_size: 512
+  min_depth: 0
+  max_depth: 1800
+  dropout_prob: 0.2
+  epochs: 8000
+  patience: 500
+  learning_rate: 0.001
+  train_size: 0.7
+  val_size: 0.15
+  test_size: 0.15
+
+input_params:
+  timecos: true
+  timesin: true
+  latcos: true
+  latsin: true
+  loncos: true
+  lonsin: true
+  sat: true
+  sst: true
+  sss: true
+  ssh: true
+
+density:
+  enabled: true
+  stab_weight: 0.001
+  smooth_weight: 0.001
+  stability_tol: 1.0e-6
+  smooth_window: [0, 500]
+
+runtime:
+  load_trained_model: false
+  ensemble_models: false
+  load_dataset_file: true
+  gen_paula_profiles: false
+  debug: false
+  seed: 42
+  n_runs: 1
+  nn_repeat_time: 10
+  gem_repeat_time: 1
+  bin_size: 1
+  num_samples: 1
+
+monitor:
+  tensorboard: false
+  log_dir: runs/nespreso

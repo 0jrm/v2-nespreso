@@ -1,0 +1,7 @@
+Phase 5. Extract model + objective code, verbatim behavior.
+- src/<pkg>/models/mlp.py: PredictionModel (~707-754).
+- src/<pkg>/models/density.py: RhoMLP (~755-771) + DensityConstraint (~1116-1217).
+- src/<pkg>/losses.py: WeightedMSELoss, genWeightedMSELoss, PCALoss,
+  CombinedPCALoss (~994-1115). Add a make_loss(config, ...) factory mirroring the
+  current selection logic in __main__. Keep the density-penalty wiring identical.
+Verify a forward pass + one loss value against golden numbers.

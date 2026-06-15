@@ -1,0 +1,11 @@
+Phase 9. Final pass.
+- Remove dead/commented code (~887 comment lines), but list each non-trivial
+  removed block under "## Removed - confirm" and wait for my sign-off on anything
+  ambiguous.
+- Finish type hints and docstrings on public functions.
+- Write ARCHITECTURE.md: the module map, the data flow (io → data → models →
+  train → inference → metrics → viz → experiments), how to run each experiment,
+  and a "domain quirks preserved" section (datenum +366, sklearn warning
+  suppression, PCA component choices, reload() behavior).
+- Confirm the original single file can be deleted (nothing imports it) or kept as
+  a thin deprecation shim.

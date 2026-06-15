@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nespreso"
+version = "0.1.0"
+description = "NeSPReSO ocean subsurface field reconstruction pipeline"
+readme = "docs/HOWTO.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy<2",
+    "torch",
+    "scipy",
+    "scikit-learn",
+    "xarray",
+    "cartopy",
+    "gsw",
+    "seaborn",
+    "cmocean",
+    "plotly",
+    "pandas",
+    "mat73",
+    "tqdm",
+    "matplotlib",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+download = ["copernicusmarine", "requests"]
+monitor = ["tensorboard"]
+
+[project.scripts]
+nespreso = "nespreso.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pytest.ini_options]
+markers = [
+    "requires_unity: tests that need /unity data paths on HPC",
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120

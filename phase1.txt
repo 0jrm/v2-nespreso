@@ -1,0 +1,9 @@
+Phase 1. Extract zero-dependency pure code into the package, leaving the original
+file working by importing back from the new modules (shim), so behavior is
+unchanged and tests stay green.
+- src/<pkg>/metrics.py: rmse, bias, mad (lines ~90-100). Add type hints + docstrings.
+- src/<pkg>/utils/time.py: datenum_to_datetime / matlab2datetime (dedupe the two
+  near-identical versions into one; verify equality on sample datenums first).
+- src/<pkg>/determinism.py: the seed block (torch/np/random=42) and DEVICE
+  selection, exposed as set_seed(seed) and get_device().
+Run the characterization tests. Report results and any "Needs human review" items.

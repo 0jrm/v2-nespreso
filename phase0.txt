@@ -1,0 +1,15 @@
+Phase 0. Make NO logic changes.
+1. Create a git branch `refactor/modularize`.
+2. Add a minimal `pyproject.toml` declaring package `<pkg>` (src layout) and the
+   third-party deps actually imported by the file (numpy, torch, scipy, sklearn,
+   xarray, cartopy, gsw, seaborn, cmocean, plotly, pandas, mat73, tqdm,
+   matplotlib). Note local deps `metrics` and `eoas_pyutils` as path/editable
+   installs or document them — do not vendor them yet.
+3. Run `ruff format` (or black) ONCE across the file as its own standalone commit
+   labeled "style: one-time format pass". Nothing else in that commit.
+4. Build tests/ with conftest.py (synthetic T/S profile + lat/lon/date fixtures)
+   and tests/test_characterization.py that, per the Execution environment in
+   CLAUDE.md, captures golden outputs for: rmse/bias/mad on a fixed array, one
+   dataset __getitem__, one inverse_transform round-trip, and a short train_model
+   run (few epochs) — OR import-only smoke tests if CANNOT RUN.
+Report the dependency list you inferred and ask me to confirm before installing.

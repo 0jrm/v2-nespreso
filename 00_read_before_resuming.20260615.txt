@@ -1,0 +1,109 @@
+  Ponytail review: plan vs implementation
+
+  Where you are: Demand sprint is largely built (~1,700 lines in src/nespreso/, monolith still the trunk at ~4,400
+  lines). Phase 0 is incomplete (no first commit, no format pass, train golden test is a stub). Phases 3–9 are
+  untouched. The risky part — verified moves — hasn’t really started.
+
+  ────────────────────────────────────────
+
+  Plan — cut or defer
+
+  plan.md:Step4: yagni SQLite/HDF5 nespreso.ingest before anyone trains a second basin. Monolith .mat + pickle path
+  works; port when NEW_BASIN is real, not on the roadmap card.
+
+  plan.md:Step4: yagni checkpoint/resume/best-model tracking behind flags. One checkpoint save matches current
+  behavior; add when training runs are long enough to hurt.
+
+  plan.md:Tier3: yagni legacy/SOURCES.md + ARCHITECTURE.md in phase 9 only. A stub SOURCES.md at first salvage
+  commit is enough until phase 8.
+
+  plan.md:Sequence: shrink demand sprint assumed CLI+config before golden capture. Finish phase 0 on HPC first
+  (train_loss_trajectory golden), then trust further extractions.
+
+  phase2.txt: yagni full config reconcile while monolith __main__ still has ~100 lines of duplicate knobs
+  (singleFileModel…:1516-1554). Next reconcile step: __main__ → load_config() + run_training(), delete the inline
+  block — not a third copy in YAML/dataclasses/monolith.
+
+  phase4.txt: keep PCA dedup test-first. That’s the right kind of complexity for this repo.
+
+  ────────────────────────────────────────
+
+  Implementation — one line per finding
+
+  config.py:L30-31: delete: BboxConfig.as_tuple(). Never called.
+
+  config.py:L42-47 + L95-100 + default.yaml:9-10: shrink: density paths in both PathsConfig and DensityConfig. One
+  source; runner already overwrites at runner.py:64-65.
+
+  config.py:L48 + default.yaml:11: yagni: isop_nc in typed config. Monolith hardcodes the same path at :1789;
+  nothing reads cfg.paths.isop_nc.
+
+  config.py:L145-146 + default.yaml:65-66: yagni: bin_size, num_samples in RuntimeFlags. Runner never applies them;
+  only __main__ locals use them.
+
+  config.py:L77-89 + L106-115: shrink: hand-rolled as_dict() on frozen dataclasses. dataclasses.asdict(self) (or
+  pass objects through).
+
+  config.py + default.yaml (whole files): yagni: triple source of truth (dataclass defaults, YAML, monolith
+  __main__). YAML loads into dataclasses with defaults — drop duplicated defaults from one side (~70 lines in yaml
+  OR ~80 in dataclass defaults).
+
+  utils/time.py:L21-23: delete: matlab2datetime alias once monolith imports only datenum_to_datetime. Phase 1 dedup
+  goal; alias is compatibility debt.
+
+  runner.py:L21-34 + test_characterization.py:L28-35: shrink: duplicate _load_monolith(). One
+  tests/monolith_loader.py (~12 lines) imported by both.
+
+  io/download/copernicus.py:L10-47: delete: download_ssh_year. No CLI, no caller; AVISO uses motu (aviso.py), not
+  this.
+
+  io/download/sss.py (entire file): yagni: 39-line wrapper around download_sss_day day-loop. Merge into
+  copernicus.py as download_sss_range(); CLI calls it directly.
+
+  io/download/__init__.py: yagni: re-export barrel. Only cli.py imports downloaders; import modules directly.
+
+  io/download/aviso.py:L12-19: yagni: DownloadBbox dataclass while OSTIA/SSS take four floats. One bbox style:
+  (min_lon, max_lon, min_lat, max_lat) tuple everywhere.
+
+  cli.py:L29-45 (×3 products): shrink: six repeated bbox/date args. add_common_bbox(parser) parent or shared
+  Namespace — ~25 lines.
+
+  cli.py:L70-71: stdlib: _parse_date. datetime.fromisoformat(value) for YYYY-MM-DD.
+
+  test_characterization.py:L82-92: delete: stub test_short_train_loss_trajectory that always skips. Implement or
+  remove until HPC capture; empty test is noise.
+
+  pyproject.toml:L29-32: keep optional [download] / [monitor] extras. Lazy deps are the lazy win.
+
+  train.py, metrics.py, determinism.py, utils/time.py: Lean already. Right-sized extractions; monolith imports them
+  correctly.
+
+  physics_metrics.py (863 lines): not flagging. Vendored science code; deleting isn’t simplification.
+
+  docs/HOWTO.md + docs/NEW_BASIN.md: keep. Demand sprint deliverable, not bloat.
+
+  ────────────────────────────────────────
+
+  What’s actually lean
+
+  • Monolith still owns dataset/models/losses; package is a thin CLI + config + runner shim. Correct for this
+    stage.
+  • TensorBoard opt-in with default off (train.py:80-82). No behavior tax.
+  • sys.path hacks removed from monolith; real package imports. Good.
+  • Optional copernicusmarine/tensorboard extras instead of bloating core deps.
+
+  ────────────────────────────────────────
+
+  Biggest ponytail miss (plan + code)
+
+  You built the demand sprint surface before the verification floor. Without train_loss_trajectory golden on HPC,
+  every future phase-1–6 move is flying blind. That’s not over-engineering — it’s under-verifying ahead of more
+  structure.
+
+  ────────────────────────────────────────
+
+  net: ~130–180 lines possible in current package (dead download code, config duplication, CLI arg repetition,
+  duplicate monolith loader). Plan deferrals avoid thousands of lines (ingest/, checkpoint machinery, experiments/)
+  that don’t answer today’s six questions.
+
+  Lean already. Ship the verification gate; don’t ship more modules until goldens pass.

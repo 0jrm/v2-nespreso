@@ -1,0 +1,10 @@
+Phase 7. Extract plotting, enforcing the pure-compute/side-effect-edge split.
+For each plotting function, separate the statistic computation (returns arrays/
+DataFrames, unit-testable) from the rendering (takes those + an Axes, draws).
+- src/<pkg>/viz/maps.py: calculate_average_in_bin, plot_bin_map, plot_rmse_on_ax,
+  plot_comparison_maps, plot_residual_profiles_for_top_bins.
+- src/<pkg>/viz/profiles.py: visualize_combined_results, seasonal_plots,
+  filter_by_season, calculate_bias.
+- src/<pkg>/viz/fields.py: glider plot_field/plot_field_subplot, coefficient
+  heatmaps. No plt.savefig/plt.show inside compute functions.
+Unit-test the extracted compute functions on synthetic inputs.

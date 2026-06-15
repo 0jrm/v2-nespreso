@@ -1,0 +1,13 @@
+Phase 8. Split the ~2,900-line __main__ (lines 1643-4547) into runnable scripts
+under experiments/, each importing the library and taking config via CLI/yaml.
+First HOIST every helper currently defined inside __main__ (printParams,
+prepare_features, fit_pcs_regression_exact_gpu, predict_pcs_exact_gpu, haversine,
+calculate_distances, get_glider_predictions, bin_data, compute_density_profiles,
+compute_stability_metrics, compute_smoothness_metrics, etc.) into the proper
+library module. Then create:
+  experiments/train.py, validation_maps.py, compare_legacy_nespreso.py,
+  steric_depth_stats.py, pca_regression_baseline.py, glider_mission.py,
+  density_stability.py, monthly_distribution.py
+Each script: parse config → load data/model → run that block → save outputs/figs.
+Add a small CLI (argparse or typer) entrypoint. Confirm each experiment's outputs
+match the corresponding section of the original run (or flag for human verify).
