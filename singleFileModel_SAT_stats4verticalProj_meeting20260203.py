@@ -45,6 +45,7 @@ from nespreso.physics_metrics import (
 )
 from nespreso.io.satellite_readers import get_aviso_by_date, get_sst_by_date, get_sss_by_date
 from nespreso.io.satellite import load_satellite_data, load_satellite_data_for_dataset
+from nespreso.io.argo import load_argo_mat
 from nespreso.metrics import bias, mad, rmse
 from nespreso.utils.time import datenum_to_datetime, matlab2datetime
 from nespreso.determinism import get_device, set_seed
@@ -120,13 +121,7 @@ class TemperatureSalinityDataset(torch.utils.data.Dataset):
         self.max_depth = max_depth
         self.min_depth = min_depth  # data quality is poor above 20m
 
-        self.data = mat73.loadmat(self.data_path)
-        self.TIME = [datenum_to_datetime(datenum) for datenum in self.data["TIME"]]
-
-        # self.TIME = data['TIME']
-        self.LAT = self.data["LAT"]
-        self.LON = self.data["LON"]
-        self.SH1950 = self.data["SH1950"]
+        self.data, self.TIME, self.LAT, self.LON, self.SH1950 = load_argo_mat(self.data_path)
         self.min_lat = min_lat
         self.max_lat = max_lat
         self.min_lon = min_lon
