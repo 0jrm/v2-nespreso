@@ -43,7 +43,7 @@ from nespreso.physics_metrics import (
     second_derivative,
     static_stability_metrics,
 )
-from nespreso.io.satellite_readers import get_aviso_by_date, get_sst_by_date, get_sss_by_date
+from nespreso.io.satellite_readers import get_aviso_by_date
 from nespreso.io.satellite import load_satellite_data, load_satellite_data_for_dataset
 from nespreso.io.argo import load_argo_mat
 from nespreso.metrics import bias, mad, rmse
