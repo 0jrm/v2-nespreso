@@ -38,18 +38,20 @@ def require_trained_model_path(cfg: AppConfig) -> str:
 
 def _load_monolith():
     """Import the research monolith from the repo root."""
-    root = Path(__file__).resolve().parents[2]
-    monolith_path = root / "singleFileModel_SAT_stats4verticalProj_meeting20260203.py"
-    if not monolith_path.exists():
-        raise FileNotFoundError(f"Monolith not found: {monolith_path}")
+    import importlib.util
+    import sys
+    from pathlib import Path
 
-    spec = importlib.util.spec_from_file_location("nespreso_monolith", monolith_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load monolith from {monolith_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["nespreso_monolith"] = module
-    spec.loader.exec_module(module)
-    return module
+    loader_name = "nespreso_monolith_loader"
+    if loader_name not in sys.modules:
+        loader_path = Path(__file__).resolve().parents[2] / "tests" / "monolith_loader.py"
+        spec = importlib.util.spec_from_file_location(loader_name, loader_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Cannot load monolith loader from {loader_path}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[loader_name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[loader_name].load_monolith()
 
 
 def _load_dataset_pickle(monolith_module, pickle_path: str | Path):

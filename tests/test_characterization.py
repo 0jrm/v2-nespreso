@@ -11,9 +11,7 @@ to record or verify golden files under ``tests/golden/``.
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from dataclasses import asdict
 from pathlib import Path
 
@@ -28,25 +26,16 @@ from nespreso.determinism import set_seed
 from nespreso.metrics import bias, mad, rmse
 from nespreso.runner import _load_dataset_pickle, apply_runtime_globals
 from nespreso.train import train_model
+from tests.monolith_loader import load_monolith
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
 TOL = 1e-6
 GOLDEN_TRAIN_EPOCHS = 5
 
 
-def _load_monolith():
-    root = Path(__file__).resolve().parents[1]
-    path = root / "singleFileModel_SAT_stats4verticalProj_meeting20260203.py"
-    spec = importlib.util.spec_from_file_location("nespreso_monolith", path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["nespreso_monolith"] = module
-    spec.loader.exec_module(module)
-    return module
-
-
 def _capture_short_train_trajectory(cfg: AppConfig) -> list[dict[str, float]]:
     """Run a deterministic short training loop for golden characterization."""
-    m = _load_monolith()
+    m = load_monolith()
     apply_runtime_globals(m, cfg)
 
     model_cfg = cfg.model
@@ -114,7 +103,7 @@ def _capture_short_train_trajectory(cfg: AppConfig) -> list[dict[str, float]]:
 def test_inverse_transform_roundtrip(fitted_pca_pair):
     pca_temp, pca_sal, temp_pcs, sal_pcs, n_components = fitted_pca_pair
     pcs = np.hstack([temp_pcs, sal_pcs])
-    m = _load_monolith()
+    m = load_monolith()
     temp_profiles, sal_profiles = m.inverse_transform(pcs, pca_temp, pca_sal, n_components)
     assert temp_profiles.shape[0] == pca_temp.n_features_in_
     assert sal_profiles.shape[0] == pca_sal.n_features_in_
@@ -129,7 +118,7 @@ def test_dataset_getitem_golden(request):
         pytest.skip("HPC golden tests disabled; pass --run-unity on /unity host")
 
     golden_file = GOLDEN_DIR / "dataset_getitem_0.json"
-    m = _load_monolith()
+    m = load_monolith()
     from nespreso.config import load_config
 
     cfg = load_config()
