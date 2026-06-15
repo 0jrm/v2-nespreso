@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +27,6 @@ class BboxConfig:
     ex_lat: float = 23.0
     ex_lon: float = -90.0
 
-    def as_tuple(self) -> tuple[float, float, float, float]:
-        return (self.min_lat, self.max_lat, self.min_lon, self.max_lon)
-
 
 @dataclass(frozen=True)
 class PathsConfig:
@@ -39,9 +36,6 @@ class PathsConfig:
     sss_folder: str = "/Net/work/ozavala/DATA/GOFFISH/SSS/SMAP_Global/"
     dataset_pickle: str = "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/config_dataset_full.pkl"
     saved_models_dir: str = "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models"
-    density_checkpoint: str = "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt"
-    density_stats: str = "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz"
-    isop_nc: str = "/unity/g2/jmiranda/SubsurfaceFields/Data/ISOP1_rmse_bias_1deg_maps.nc"
     trained_model_path: str | None = None
 
     @classmethod
@@ -69,20 +63,6 @@ class InputParams:
     sss: bool = True
     ssh: bool = True
 
-    def as_dict(self) -> dict[str, bool]:
-        return {
-            "timecos": self.timecos,
-            "timesin": self.timesin,
-            "latcos": self.latcos,
-            "latsin": self.latsin,
-            "loncos": self.loncos,
-            "lonsin": self.lonsin,
-            "sat": self.sat,
-            "sst": self.sst,
-            "sss": self.sss,
-            "ssh": self.ssh,
-        }
-
 
 @dataclass(frozen=True)
 class DensityConfig:
@@ -93,17 +73,6 @@ class DensityConfig:
     smooth_weight: float = 0.001
     stability_tol: float = 1e-6
     smooth_window: tuple[int, int] = (0, 500)
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "enabled": self.enabled,
-            "checkpoint": self.checkpoint,
-            "stats_path": self.stats_path,
-            "stab_weight": self.stab_weight,
-            "smooth_weight": self.smooth_weight,
-            "stability_tol": self.stability_tol,
-            "smooth_window": list(self.smooth_window),
-        }
 
 
 @dataclass(frozen=True)
@@ -133,8 +102,6 @@ class RuntimeFlags:
     n_runs: int = 1
     nn_repeat_time: int = 10
     gem_repeat_time: int = 1
-    bin_size: int = 1
-    num_samples: int = 1
 
 
 @dataclass(frozen=True)
@@ -156,10 +123,6 @@ class AppConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AppConfig:
         density_data = dict(data.get("density", {}))
-        if "paths" in data:
-            paths = data["paths"]
-            density_data.setdefault("checkpoint", paths.get("density_checkpoint"))
-            density_data.setdefault("stats_path", paths.get("density_stats"))
         smooth_window = density_data.get("smooth_window", (0, 500))
         if isinstance(smooth_window, list):
             smooth_window = tuple(smooth_window)
@@ -178,6 +141,13 @@ class AppConfig:
             runtime=RuntimeFlags(**{**RuntimeFlags().__dict__, **data.get("runtime", {})}),
             monitor=MonitorConfig(**{**MonitorConfig().__dict__, **data.get("monitor", {})}),
         )
+
+
+def density_penalty_dict(cfg: AppConfig) -> dict[str, Any]:
+    """Density penalty config dict expected by the monolith loss."""
+    payload = asdict(cfg.density)
+    payload["smooth_window"] = list(payload["smooth_window"])
+    return payload
 
 
 def load_config(path: str | Path | None = None) -> AppConfig:

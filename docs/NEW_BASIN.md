@@ -31,4 +31,4 @@ Use this when moving NeSPReSO beyond the Gulf of Mexico defaults in `configs/def
 
 ## Density surrogate
 
-If using `density.enabled: true`, provide basin-appropriate `paths.density_checkpoint` and `paths.density_stats`, or disable the penalty until a regional ρ-MLP is trained.
+If using `density.enabled: true`, provide basin-appropriate `density.checkpoint` and `density.stats_path`, or disable the penalty until a regional ρ-MLP is trained.

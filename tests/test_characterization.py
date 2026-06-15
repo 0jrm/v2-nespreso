@@ -14,6 +14,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
@@ -22,7 +23,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from nespreso.config import AppConfig, load_config
+from nespreso.config import AppConfig, density_penalty_dict, load_config
 from nespreso.determinism import set_seed
 from nespreso.metrics import bias, mad, rmse
 from nespreso.runner import _load_dataset_pickle, apply_runtime_globals
@@ -49,10 +50,8 @@ def _capture_short_train_trajectory(cfg: AppConfig) -> list[dict[str, float]]:
     apply_runtime_globals(m, cfg)
 
     model_cfg = cfg.model
-    input_params = cfg.input_params.as_dict()
-    density_penalty_config = cfg.density.as_dict()
-    density_penalty_config["checkpoint"] = cfg.paths.density_checkpoint
-    density_penalty_config["stats_path"] = cfg.paths.density_stats
+    input_params = asdict(cfg.input_params)
+    density_penalty_config = density_penalty_dict(cfg)
 
     data = _load_dataset_pickle(m, cfg.paths.dataset_pickle)
     full_dataset = data["full_dataset"]

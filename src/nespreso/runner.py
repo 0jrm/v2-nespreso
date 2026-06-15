@@ -14,7 +14,9 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from nespreso.config import AppConfig
+from dataclasses import asdict
+
+from nespreso.config import AppConfig, density_penalty_dict
 from nespreso.determinism import get_device, set_seed
 
 
@@ -86,10 +88,8 @@ def run_training(cfg: AppConfig) -> Path | None:
     apply_runtime_globals(m, cfg)
 
     model_cfg = cfg.model
-    input_params = cfg.input_params.as_dict()
-    density_penalty_config = cfg.density.as_dict()
-    density_penalty_config["checkpoint"] = cfg.paths.density_checkpoint
-    density_penalty_config["stats_path"] = cfg.paths.density_stats
+    input_params = asdict(cfg.input_params)
+    density_penalty_config = density_penalty_dict(cfg)
 
     dataset_pickle_file = cfg.paths.dataset_pickle
     bbox = cfg.bbox

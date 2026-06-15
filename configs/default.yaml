@@ -6,9 +6,6 @@ paths:
   sss_folder: /Net/work/ozavala/DATA/GOFFISH/SSS/SMAP_Global/
   dataset_pickle: /unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/config_dataset_full.pkl
   saved_models_dir: /unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models
-  density_checkpoint: /unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt
-  density_stats: /unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz
-  isop_nc: /unity/g2/jmiranda/SubsurfaceFields/Data/ISOP1_rmse_bias_1deg_maps.nc
   trained_model_path: null
 
 bbox:
@@ -47,6 +44,8 @@ input_params:
 
 density:
   enabled: true
+  checkpoint: /unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt
+  stats_path: /unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz
   stab_weight: 0.001
   smooth_weight: 0.001
   stability_tol: 1.0e-6
@@ -62,8 +61,6 @@ runtime:
   n_runs: 1
   nn_repeat_time: 10
   gem_repeat_time: 1
-  bin_size: 1
-  num_samples: 1
 
 monitor:
   tensorboard: false
