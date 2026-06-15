@@ -28,6 +28,16 @@ PROFILES_GOLDEN = GOLDEN_DIR / "viz_profiles_synthetic.json"
 PLOT_GOLDEN = GOLDEN_DIR / "viz_plot_artifacts.json"
 
 
+def _configure_profile_depth_globals(m, min_depth=20, max_depth=45):
+    """``calculate_bias`` reads module-level depth globals (monolith parity)."""
+    import nespreso.viz.profiles as viz_profiles
+
+    m.min_depth = min_depth
+    m.max_depth = max_depth
+    viz_profiles.min_depth = min_depth
+    viz_profiles.max_depth = max_depth
+
+
 def _load_json(path: Path):
     return json.loads(path.read_text())
 
@@ -62,9 +72,8 @@ def viz_maps_fixture():
 @pytest.fixture
 def viz_profiles_fixture():
     m = load_monolith()
+    _configure_profile_depth_globals(m)
     np.random.seed(102)
-    m.min_depth = 20
-    m.max_depth = 45
     min_d, max_d = 20, 45
     depth_n = max_d - min_d + 1
     true_values = np.random.randn(depth_n, 2, 4)
@@ -78,9 +87,8 @@ def viz_profiles_fixture():
 @pytest.fixture
 def viz_bias_fixture():
     m = load_monolith()
+    _configure_profile_depth_globals(m)
     np.random.seed(101)
-    m.min_depth = 20
-    m.max_depth = 45
     true_values = np.random.randn(26, 2, 4)
     gem_temp = np.random.randn(4, 26)
     gem_sal = np.random.randn(4, 26)
@@ -171,7 +179,7 @@ def test_visualize_combined_results_plot_artifacts(viz_profiles_fixture):
 
     plt.close("all")
     np.random.seed(1020)
-    with patch.object(m.plt, "show"):
+    with patch("matplotlib.pyplot.show"):
         m.visualize_combined_results(
             true_values,
             gem_temp,
@@ -204,7 +212,7 @@ def test_plot_bin_map_plot_artifacts(viz_maps_fixture):
     )
 
     plt.close("all")
-    with patch.object(m.plt, "show"):
+    with patch("matplotlib.pyplot.show"):
         m.plot_bin_map(lon_bins, lat_bins, avg_rmse, num_prof, "Temperature", "RMSE")
 
     summary = _fig_summary()
@@ -253,7 +261,7 @@ def test_plot_comparison_maps_plot_artifacts(viz_maps_fixture):
     lat_c = (lat_bins[:-1] + lat_bins[1:]) / 2
 
     plt.close("all")
-    with patch.object(m.plt, "show"):
+    with patch("matplotlib.pyplot.show"):
         m.plot_comparison_maps(lon_c, lat_c, avg_rmse, avg_bias, "temperature", "GEM")
 
     summary = _fig_summary()
@@ -276,7 +284,7 @@ def test_plot_residual_profiles_for_top_bins_plot_artifacts(viz_maps_fixture):
     residuals = np.random.randn(26, 4)
 
     plt.close("all")
-    with patch.object(m.plt, "show"):
+    with patch("matplotlib.pyplot.show"):
         m.plot_residual_profiles_for_top_bins(
             lon_bins,
             lat_bins,
