@@ -49,6 +49,13 @@ from nespreso.io.argo import load_argo_mat
 from nespreso.metrics import bias, mad, rmse
 from nespreso.utils.time import datenum_to_datetime, matlab2datetime
 from nespreso.determinism import get_device, set_seed
+from nespreso.inference import (
+    get_inputs,
+    get_predictions,
+    get_predictions_torchscript,
+    load_all_models,
+    predict_with_numpy,
+)
 from nespreso.train import evaluate_model, train_model
 from nespreso.data.features import prepare_inputs
 from nespreso.data.dataset import TemperatureSalinityDataset
@@ -85,81 +92,6 @@ DEVICE = get_device()
 coolwhitewarm = mcolors.LinearSegmentedColormap.from_list(
     name="red_white_blue", colors=[(0, 0, 1), (1, 1.0, 1), (1, 0, 0)]
 )
-
-
-def get_predictions(model, dataloader, device):
-    """
-    Get model's predictions on the provided data with CUDA support.
-
-    Parameters:
-    - model: the PyTorch model.
-    - dataloader: the DataLoader for the data.
-    - device: device to which data and model should be moved before getting predictions.
-
-    Returns:
-    - predictions: model's predictions.
-    """
-    model.to(device)
-    model.eval()
-    predictions = []
-
-    with torch.no_grad():
-        for batch in dataloader:
-            if isinstance(batch, (list, tuple)):
-                inputs = batch[0]
-            else:
-                inputs = batch
-            inputs = inputs.to(device)
-            outputs = model(inputs)
-            predictions.extend(outputs.cpu().numpy())
-
-    return np.array(predictions)
-
-
-def get_inputs(dataloader, device):
-    """
-    Get inputs from the provided dataloader with CUDA support.
-
-    Parameters:
-    - dataloader: the DataLoader for the data.
-    - device: device to which data should be moved.
-
-    Returns:
-    - all_inputs: list of inputs from the dataloader.
-    """
-    all_inputs = []
-
-    for batch in dataloader:
-        if isinstance(batch, (list, tuple)):
-            inputs = batch[0]
-        else:
-            inputs = batch
-        inputs = inputs.to(device)
-        all_inputs.extend(inputs.cpu().numpy())
-
-    return np.array(all_inputs)
-
-
-def predict_with_numpy(model, numpy_input, device=DEVICE):
-    # Convert numpy array to tensor
-    tensor_input = torch.tensor(numpy_input, dtype=torch.float32)
-
-    # Check if CUDA is available and move tensor to the appropriate device
-    if device == "cuda" and torch.cuda.is_available():
-        tensor_input = tensor_input.cuda()
-        model = model.cuda()
-
-    # Make sure the model is in evaluation mode
-    model.eval()
-
-    # Make predictions
-    with torch.no_grad():
-        predictions = model(tensor_input)
-
-    # Convert predictions back to numpy (if on GPU, move to CPU first)
-    numpy_predictions = predictions.cpu().numpy()
-
-    return numpy_predictions
 
 
 def inverse_transform(pcs, pca_temp, pca_sal, n_components):
@@ -689,24 +621,6 @@ def plot_residual_profiles_for_top_bins(
     plt.show()
 
 
-def load_all_models(models_dir, device, input_dim, layers_config, n_components, dropout_prob):
-    model_paths = sorted(glob.glob(os.path.join(models_dir, "model_Test Loss: *.pth")))
-    models = []
-    for model_path in model_paths:
-        print(f"Loading model from {model_path}")
-        checkpoint = torch.load(model_path, map_location=device)
-
-        # Initialize the model architecture
-        model = PredictionModel(
-            input_dim=input_dim, layers_config=layers_config, output_dim=n_components * 2, dropout_prob=dropout_prob
-        )
-        model.load_state_dict(checkpoint["model_state_dict"])
-        model.to(device)
-        model.eval()  # Set to evaluation mode
-        models.append(model)
-    return models
-
-
 # %%
 if __name__ == "__main__":
     from dataclasses import asdict
@@ -935,24 +849,6 @@ if __name__ == "__main__":
 
     # Get predictions from old model using TorchScript inference
     # Need to prepare inputs in the same format as the API expects
-    def get_predictions_torchscript(model, dataloader, device, input_params_check):
-        """Get predictions from TorchScript model."""
-        model.to(device)
-        model.eval()
-        predictions = []
-
-        with torch.no_grad():
-            for batch in dataloader:
-                if isinstance(batch, (list, tuple)):
-                    inputs = batch[0]
-                else:
-                    inputs = batch
-                inputs = inputs.to(device)
-                outputs = model(inputs)
-                predictions.extend(outputs.cpu().numpy())
-
-        return np.array(predictions)
-
     old_val_predictions_pcs = get_predictions_torchscript(old_model, val_loader, device, old_input_params)
 
     old_val_predictions = sklearn_inverse_transform_pcs(
