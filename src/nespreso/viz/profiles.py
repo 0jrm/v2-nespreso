@@ -212,9 +212,7 @@ def seasonal_plots(
         )
 
 
-def calculate_bias(true_values, predicted_values, gem_temp, gem_sal):
-
-    depths = np.arange(min_depth, max_depth + 1)
+def calculate_bias(true_values, predicted_values, gem_temp, gem_sal, min_depth=20, max_depth=2000):
     gem_temp_bias = gem_temp.T - true_values[:, 0, :]
     gem_sal_bias = gem_sal.T - true_values[:, 1, :]
 

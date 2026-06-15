@@ -47,7 +47,8 @@ from nespreso.io.satellite_readers import get_aviso_by_date
 from nespreso.io.satellite import load_satellite_data, load_satellite_data_for_dataset
 from nespreso.io.argo import load_argo_mat
 from nespreso.metrics import bias, mad, rmse
-from nespreso.utils.time import datenum_to_datetime, matlab2datetime
+from nespreso.utils.time import datenum_to_datetime, datenums_to_datetimes, matlab2datetime
+from nespreso.utils.geo import calculate_distances, haversine
 from nespreso.determinism import get_device, set_seed
 from nespreso.inference import (
     get_inputs,
@@ -85,7 +86,13 @@ from nespreso.viz.profiles import (
 )
 from nespreso.viz.fields import plot_field, plot_field_subplot
 from nespreso.viz.coefficients import plot_coefficients_heatmap
+from nespreso.analysis.density import (
+    compute_density_profiles,
+    compute_smoothness_metrics,
+    compute_stability_metrics,
+)
 from nespreso.analysis import (
+    average_depth,
     bin_data,
     calculate_correlation,
     compute_depth_interval_metrics,
@@ -93,8 +100,13 @@ from nespreso.analysis import (
     compute_profile_residual,
     compute_season_masked_depth_rmse_bias,
     default_depth_intervals,
+    equivalent_average_statistic,
+    fit_pcs_regression_exact_gpu,
     get_glider_predictions,
+    histogram_available_depths,
     isop_depth_indices,
+    predict_pcs_exact_gpu,
+    prepare_features,
 )
 
 plt.rcParams.update({"font.size": 18})
@@ -364,6 +376,8 @@ if __name__ == "__main__":
 
     orig_T = original_profiles[:, 0, :]
     orig_S = original_profiles[:, 1, :]
+    old_T_resid = compute_profile_residual(old_pred_T, orig_T)
+    old_S_resid = compute_profile_residual(old_pred_S, orig_S)
 
     # Start time
     start_time = time.perf_counter()
@@ -405,9 +419,11 @@ if __name__ == "__main__":
     isop_depths = ist.depth.values
     avg_gem_temp_rmse, avg_gem_temp_bias = compute_depth_rmse_bias(gems_T_resid, axis=1)
     avg_nn_temp_rmse, avg_nn_temp_bias = compute_depth_rmse_bias(pred_T_resid, axis=1)
+    avg_old_temp_rmse, avg_old_temp_bias = compute_depth_rmse_bias(old_T_resid, axis=1)
 
     avg_gem_sal_rmse, avg_gem_sal_bias = compute_depth_rmse_bias(gems_S_resid, axis=1)
     avg_nn_sal_rmse, avg_nn_sal_bias = compute_depth_rmse_bias(pred_S_resid, axis=1)
+    avg_old_sal_rmse, avg_old_sal_bias = compute_depth_rmse_bias(old_S_resid, axis=1)
 
     # Identify indices for the training, validation, and testing datasets
     train_indices = train_dataset.indices
@@ -918,69 +934,40 @@ if __name__ == "__main__":
 
     ## Multiple linear regression
 
-    def prepare_features(inputs_array, max_degree=3):
-        """
-        Prepare the feature matrix for regression by including polynomial terms.
+    MLR_degree = 1
+    MLR_indices = train_indices + val_indices
+    inputs_list_train, pcs_list_train = full_dataset.__getitem__(MLR_indices)
 
-        Args:
-        - inputs_array (numpy.ndarray): Array of input features, shape (n_samples, n_features).
-        - max_degree (int): Maximum degree of polynomial features.
+    inputs_array_train = np.array(inputs_list_train.T)
+    pcs_T_train, pcs_S_train = np.hsplit(pcs_list_train, 2)
+    pcs_T_train = pcs_T_train.T
+    pcs_S_train = pcs_S_train.T
 
-        Returns:
-        - X (numpy.ndarray): Feature matrix of shape (n_samples, n_features_expanded).
-        """
-        # Generate polynomial features up to the specified degree
-        poly = PolynomialFeatures(degree=max_degree, include_bias=False)
-        X = poly.fit_transform(inputs_array)
-        return X
+    X_train = prepare_features(inputs_array_train, max_degree=MLR_degree)
+    scaler = StandardScaler()
+    X_avgs = X_train.mean(axis=0)
+    X_train_scaled = scaler.fit_transform(X_train) + 1
 
-    def fit_pcs_regression_exact_gpu(X, pcs):
-        """
-        Fit regression models to predict principal component scores from features using exact least squares on GPU.
+    print("Beginning multiple linear regression using PyTorch on GPU")
+    start_time = time.perf_counter()
+    beta_T = fit_pcs_regression_exact_gpu(X_train, pcs_T_train)
+    beta_S = fit_pcs_regression_exact_gpu(X_train, pcs_S_train)
+    end_time = time.perf_counter()
+    elapsed_time = end_time - start_time
+    print(f"MLR fit completed in {elapsed_time:.2f} seconds.")
 
-        Args:
-        - X (numpy.ndarray): Feature matrix, shape (n_samples, n_features_expanded).
-        - pcs (numpy.ndarray): Principal component scores, shape (n_samples, n_components).
+    inputs_list_val, _ = full_dataset.__getitem__(val_indices)
+    inputs_array_val = np.array(inputs_list_val.T)
+    X_val = prepare_features(inputs_array_val, max_degree=MLR_degree)
+    X_val_scaled = scaler.fit_transform(X_val) + 1
 
-        Returns:
-        - beta (torch.Tensor): Coefficient matrix, shape (n_features_expanded, n_components).
-        """
-        # Convert data to torch tensors and move to GPU
-        X_tensor = torch.tensor(X, dtype=torch.float32).to(DEVICE)
-        pcs_tensor = torch.tensor(pcs, dtype=torch.float32).to(DEVICE)
+    pcs_pred_val_T = predict_pcs_exact_gpu(beta_T, X_val)
+    pcs_pred_val_S = predict_pcs_exact_gpu(beta_S, X_val)
+    pcs_pred_val = np.hstack([pcs_pred_val_T, pcs_pred_val_S])
 
-        # Compute the pseudoinverse of X
-        # Note: For large matrices, torch.linalg.lstsq may be more efficient
-        X_pinv = torch.pinverse(X_tensor)
-
-        print(f"{X_pinv.shape=}")
-
-        # Compute the coefficients (beta) analytically
-        beta = X_pinv @ pcs_tensor
-
-        return beta
-
-    def predict_pcs_exact_gpu(beta, X_new):
-        """
-        Predict principal component scores using the exact coefficients on GPU.
-
-        Args:
-        - beta (torch.Tensor): Coefficient matrix, shape (n_features_expanded, n_components).
-        - X_new (numpy.ndarray): New feature matrix, shape (n_samples_new, n_features_expanded).
-
-        Returns:
-        - pcs_pred (numpy.ndarray): Predicted principal component scores, shape (n_samples_new, n_components).
-        """
-        with torch.no_grad():
-            X_new_tensor = torch.tensor(X_new, dtype=torch.float32).to(DEVICE)
-            pcs_pred_tensor = X_new_tensor @ beta
-            pcs_pred = pcs_pred_tensor.cpu().numpy()
-        return pcs_pred
-
-    # Use NeSPReSO 1.0 (old model) predictions instead of MLR
-    # The old model predictions were already computed above
-    temp_MLR_profiles = old_pred_T  # Shape: (n_samples, depth_levels)
-    sal_MLR_profiles = old_pred_S  # Shape: (n_samples, depth_levels)
+    pca_temp = full_dataset.pca_temp
+    pca_sal = full_dataset.pca_sal
+    temp_MLR_profiles, sal_MLR_profiles = inverse_transform(pcs_pred_val, pca_temp, pca_sal, n_components)
 
     # Extract the original temperature and salinity profiles
     original_temp_profiles = original_profiles[:, 0, :]  # Shape: (n_samples, depth_levels)
@@ -1002,7 +989,8 @@ if __name__ == "__main__":
     ax.grid(color="gray", linestyle="--", linewidth=0.5)
     plt.plot(ist.rmse.values, ist.depth.values, linewidth=3, label="ISOP", color="xkcd:blue")
     plt.plot(avg_gem_temp_rmse, np.arange(0, 1801), linewidth=3, label="GEM", color="xkcd:orange")
-    plt.plot(avg_mlr_temp_rmse, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.0", color="xkcd:green")
+    plt.plot(avg_mlr_temp_rmse, np.arange(0, 1801), linewidth=3, label="MLR", color="xkcd:green")
+    plt.plot(avg_old_temp_rmse, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.0", color="xkcd:purple")
     plt.plot(avg_nn_temp_rmse, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.1", color="xkcd:gray")
     ax.invert_yaxis()
     plt.legend()
@@ -1016,7 +1004,8 @@ if __name__ == "__main__":
     ax.grid(color="gray", linestyle="--", linewidth=0.5)
     plt.plot(iss.rmse.values, iss.depth.values, linewidth=3, label="ISOP", color="xkcd:blue")
     plt.plot(avg_gem_sal_rmse, np.arange(0, 1801), linewidth=3, label="GEM", color="xkcd:orange")
-    plt.plot(avg_mlr_sal_rmse, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.0", color="xkcd:green")
+    plt.plot(avg_mlr_sal_rmse, np.arange(0, 1801), linewidth=3, label="MLR", color="xkcd:green")
+    plt.plot(avg_old_sal_rmse, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.0", color="xkcd:purple")
     plt.plot(avg_nn_sal_rmse, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.1", color="xkcd:gray")
     ax.invert_yaxis()
     plt.legend()
@@ -1029,7 +1018,8 @@ if __name__ == "__main__":
     ax.grid(color="gray", linestyle="--", linewidth=0.5)
     plt.plot(ist.bias.values, ist.depth.values, linewidth=3, label="ISOP", color="xkcd:blue")
     plt.plot(avg_gem_temp_bias, np.arange(0, 1801), linewidth=3, label="GEM", color="xkcd:orange")
-    plt.plot(avg_mlr_temp_bias, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.0", color="xkcd:green")
+    plt.plot(avg_mlr_temp_bias, np.arange(0, 1801), linewidth=3, label="MLR", color="xkcd:green")
+    plt.plot(avg_old_temp_bias, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.0", color="xkcd:purple")
     plt.plot(avg_nn_temp_bias, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.1", color="xkcd:gray")
     ax.invert_yaxis()
     plt.legend()
@@ -1043,7 +1033,8 @@ if __name__ == "__main__":
     ax.grid(color="gray", linestyle="--", linewidth=0.5)
     plt.plot(iss.bias.values, iss.depth.values, linewidth=3, label="ISOP", color="xkcd:blue")
     plt.plot(avg_gem_sal_bias, np.arange(0, 1801), linewidth=3, label="GEM", color="xkcd:orange")
-    plt.plot(avg_mlr_sal_bias, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.0", color="xkcd:green")
+    plt.plot(avg_mlr_sal_bias, np.arange(0, 1801), linewidth=3, label="MLR", color="xkcd:green")
+    plt.plot(avg_old_sal_bias, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.0", color="xkcd:purple")
     plt.plot(avg_nn_sal_bias, np.arange(0, 1801), linewidth=3, label="NeSPReSO 1.1", color="xkcd:gray")
     ax.invert_yaxis()
     plt.legend()
@@ -1057,28 +1048,26 @@ if __name__ == "__main__":
     feature_names = ["timecos", "timesin", "latcos", "latsin", "loncos", "lonsin", "sst", "sss", "ssh"]
 
 
-    # MLR coefficient analysis code commented out since we're using NeSPReSO 1.0 instead of MLR
-    # beta_T_scaled = beta_T.cpu() / X_avgs[:,None]
-    # beta_S_scaled = beta_S.cpu() / X_avgs[:,None]
-    # beta_T_dropped = torch.cat((beta_T_scaled[:2], beta_T_scaled[6:]), dim=0)
-    # beta_S_dropped = torch.cat((beta_S_scaled[:2], beta_S_scaled[6:]), dim=0)
-    # feature_names_dropped = feature_names[:2] + feature_names[6:]
+    # MLR coefficient analysis
+    beta_T_scaled = beta_T.cpu() / X_avgs[:, None]
+    beta_S_scaled = beta_S.cpu() / X_avgs[:, None]
+    beta_T_dropped = torch.cat((beta_T_scaled[:2], beta_T_scaled[6:]), dim=0)
+    beta_S_dropped = torch.cat((beta_S_scaled[:2], beta_S_scaled[6:]), dim=0)
+    feature_names_dropped = feature_names[:2] + feature_names[6:]
 
-    # # Plot Heatmap for Temperature PCs with Normalization
-    # plot_coefficients_heatmap(
-    #     beta_T_dropped,
-    #     feature_names_dropped,
-    #     "Normalized Regression Coefficients for Temperature PCs",
-    #     normalize=True
-    # )
+    plot_coefficients_heatmap(
+        beta_T_dropped,
+        feature_names_dropped,
+        "Normalized Regression Coefficients for Temperature PCs",
+        normalize=True,
+    )
 
-    # # Plot Heatmap for Salinity PCs with Normalization
-    # plot_coefficients_heatmap(
-    #     beta_S_dropped,
-    #     feature_names_dropped,
-    #     "Normalized Regression Coefficients for Salinity PCs",
-    #     normalize=True
-    # )
+    plot_coefficients_heatmap(
+        beta_S_dropped,
+        feature_names_dropped,
+        "Normalized Regression Coefficients for Salinity PCs",
+        normalize=True,
+    )
 
     # Heatmaps of the RMSE
     # dpt_range = np.arange(0,201)
@@ -1098,7 +1087,7 @@ if __name__ == "__main__":
     grid_avg_temp_rmse_gain = grid_avg_temp_rmse_nn - grid_avg_temp_rmse_gem
     # same for NeSPReSO 1.0
     grid_avg_temp_rmse_mlr, num_prof_mlr = calculate_average_in_bin(
-        lon_centers, lat_centers, lon_val, lat_val, mlr_T_resid, dpt_range, is_rmse=True
+        lon_centers, lat_centers, lon_val, lat_val, old_T_resid, dpt_range, is_rmse=True
     )
     grid_avg_temp_rmse_gain_mlr = grid_avg_temp_rmse_nn - grid_avg_temp_rmse_mlr
 
@@ -1115,7 +1104,7 @@ if __name__ == "__main__":
     grid_avg_sal_rmse_gain = grid_avg_sal_rmse_nn - grid_avg_sal_rmse_gem
     # same for NeSPReSO 1.0
     grid_avg_sal_rmse_mlr, num_prof_mlr = calculate_average_in_bin(
-        lon_centers, lat_centers, lon_val, lat_val, mlr_S_resid, dpt_range, is_rmse=True
+        lon_centers, lat_centers, lon_val, lat_val, old_S_resid, dpt_range, is_rmse=True
     )
     grid_avg_sal_rmse_gain_mlr = grid_avg_sal_rmse_nn - grid_avg_sal_rmse_mlr
 
@@ -1137,10 +1126,10 @@ if __name__ == "__main__":
     )
     # same for NeSPReSO 1.0
     avg_mlr_t_bias, num_prof_mlr = calculate_average_in_bin(
-        lon_centers, lat_centers, lon_val, lat_val, mlr_T_resid, dpt_range, is_rmse=False
+        lon_centers, lat_centers, lon_val, lat_val, old_T_resid, dpt_range, is_rmse=False
     )
     avg_mlr_s_bias, num_prof_mlr = calculate_average_in_bin(
-        lon_centers, lat_centers, lon_val, lat_val, mlr_S_resid, dpt_range, is_rmse=False
+        lon_centers, lat_centers, lon_val, lat_val, old_S_resid, dpt_range, is_rmse=False
     )
 
     # TODO: fix the bias color scale (negative values are not being shown properly)
@@ -1190,8 +1179,8 @@ if __name__ == "__main__":
         nn_sal_rmse, nn_sal_bias = compute_season_masked_depth_rmse_bias(pred_S_resid, season_mask)
         gem_temp_rmse, gem_temp_bias = compute_season_masked_depth_rmse_bias(gems_T_resid, season_mask)
         gem_sal_rmse, gem_sal_bias = compute_season_masked_depth_rmse_bias(gems_S_resid, season_mask)
-        mlr_temp_rmse, mlr_temp_bias = compute_season_masked_depth_rmse_bias(mlr_T_resid, season_mask)
-        mlr_sal_rmse, mlr_sal_bias = compute_season_masked_depth_rmse_bias(mlr_S_resid, season_mask)
+        mlr_temp_rmse, mlr_temp_bias = compute_season_masked_depth_rmse_bias(old_T_resid, season_mask)
+        mlr_sal_rmse, mlr_sal_bias = compute_season_masked_depth_rmse_bias(old_S_resid, season_mask)
 
         # Append data to lists
         nn_temp_rmse_all.append(nn_temp_rmse)
@@ -1403,46 +1392,6 @@ if __name__ == "__main__":
     # t2l	    (1,	238)	736892.9703	736914.0272	736903.4988	0
     # t3l	    (1,	223)	737142.9568	737180.9581	737161.9574	0
     # t4l	    (1,	301)	737254.5333	737272.0137	737263.2735	0
-
-    def haversine(lat1, lon1, lat2, lon2):
-        """
-        Calculate the great circle distance in kilometers between two points
-        on the earth (specified in decimal degrees)
-        """
-        # Convert decimal degrees to radians
-        lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
-
-        # Haversine formula
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
-        a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
-        c = 2 * np.arcsin(np.sqrt(a))
-        r = 6371  # Radius of earth in kilometers. Use 3956 for miles
-        return c * r
-
-    def calculate_distances(latitudes, longitudes):
-        """Calculate the cumulative distance between successive lat/long pairs."""
-        n = len(latitudes)
-        distances = np.zeros(n)
-        for i in range(1, n):
-            distances[i] = distances[i - 1] + haversine(
-                latitudes[i - 1], longitudes[i - 1], latitudes[i], longitudes[i]
-            )
-        return distances
-
-    def datenums_to_datetimes(matlab_datenums):
-        """
-        Convert an array of MATLAB datenum values to Python datetime objects.
-
-        Parameters:
-        matlab_datenums (np.array): Array of MATLAB datenum values
-
-        Returns:
-        list: List of Python datetime objects
-        """
-        python_datetimes = [datenum_to_datetime(datenum) for datenum in matlab_datenums]
-        return python_datetimes
-
 
     # Extract locations and distance
     latitudes_T1 = gl_data["lat1"][0]
@@ -1671,47 +1620,6 @@ if __name__ == "__main__":
     plt.tight_layout()  # Adjusts subplot params so that subplots fit into the figure area
     plt.show()
 
-    def average_depth(targets, depths):
-        return np.nansum(targets.T * depths) / np.nansum(targets)
-
-    def histogram_available_depths(targets):
-        # counts all the available depths from all profiles
-        return np.sum(-1 * (np.isnan(targets) - 1), axis=1)
-
-    def equivalent_average_statistic(predictions, targets, count, depths, function):
-        """
-        Adjusts the calculation of an average statistic (e.g., RMSE or bias) to account for the
-        depth binning of the primary dataset and uses the histogram of valid measurements to weight
-        these statistics.
-
-        :param predictions: 2D array of predictions (profiles x depth) with 1m depth resolution.
-        :param targets: 2D array of targets (profiles x depth) with 1m depth resolution.
-        :param histogram: Array of counts of valid measurements at each 5m depth bin.
-        :param depth_bins: The depth bins corresponding to the histogram (e.g., every 5 meters).
-        :param function: The statistical function to use (e.g., rmse or bias).
-        :return: The weighted average statistic across the depth bins.
-        """
-        # Initialize an array to hold the statistic for each 5m bin
-        stats_per_bin = np.zeros(len(depths))
-        step = depths[1] - depths[0]
-
-        # Iterate over each 5m bin
-        for i in range(len(depths) - 1):
-            # Indices of 1m data that fall into the current 5m bin
-            indices = np.arange(depths[i], depths[i] + step, 1)
-
-            bin_predictions = predictions[indices, :]
-            bin_targets = targets[indices, :]
-            stats_per_bin[i] = function(bin_predictions, bin_targets)
-
-        # Calculate the weighted average statistic
-        # Use histogram as weights, ensuring alignment in length
-        weighted_stat = np.nansum(stats_per_bin * count) / np.sum(count)
-
-        corr_stat = calculate_correlation(targets, predictions)
-
-        return weighted_stat, corr_stat
-
     avg_d1 = int(np.round(average_depth(T1, gld_depths))) + 1
     avg_d2 = int(np.round(average_depth(T2, gld_depths))) + 1
     avg_d3 = int(np.round(average_depth(T3, gld_depths))) + 1
@@ -1722,22 +1630,22 @@ if __name__ == "__main__":
     h3 = histogram_available_depths(T3)
     h4 = histogram_available_depths(T4)
 
-    eq_rmse_T1, eq_corr_T1 = equivalent_average_statistic(pred_T, original_profiles[:, 0, :], h1, gld_depths, rmse)
-    eq_bias_T1, eq_corr_T1 = equivalent_average_statistic(pred_T, original_profiles[:, 0, :], h1, gld_depths, bias)
-    eq_rmse_S1, eq_corr_S1 = equivalent_average_statistic(pred_S, original_profiles[:, 1, :], h1, gld_depths, rmse)
-    eq_bias_S1, eq_corr_S1 = equivalent_average_statistic(pred_S, original_profiles[:, 1, :], h1, gld_depths, bias)
-    eq_rmse_T2, eq_corr_T2 = equivalent_average_statistic(pred_T, original_profiles[:, 0, :], h2, gld_depths, rmse)
-    eq_bias_T2, eq_corr_T2 = equivalent_average_statistic(pred_T, original_profiles[:, 0, :], h2, gld_depths, bias)
-    eq_rmse_S2, eq_corr_S2 = equivalent_average_statistic(pred_S, original_profiles[:, 1, :], h2, gld_depths, rmse)
-    eq_bias_S2, eq_corr_S2 = equivalent_average_statistic(pred_S, original_profiles[:, 1, :], h2, gld_depths, bias)
-    eq_rmse_T3, eq_corr_T3 = equivalent_average_statistic(pred_T, original_profiles[:, 0, :], h3, gld_depths, rmse)
-    eq_bias_T3, eq_corr_T3 = equivalent_average_statistic(pred_T, original_profiles[:, 0, :], h3, gld_depths, bias)
-    eq_rmse_S3, eq_corr_S3 = equivalent_average_statistic(pred_S, original_profiles[:, 1, :], h3, gld_depths, rmse)
-    eq_bias_S3, eq_corr_S3 = equivalent_average_statistic(pred_S, original_profiles[:, 1, :], h3, gld_depths, bias)
-    eq_rmse_T4, eq_corr_T4 = equivalent_average_statistic(pred_T, original_profiles[:, 0, :], h4, gld_depths, rmse)
-    eq_bias_T4, eq_corr_T4 = equivalent_average_statistic(pred_T, original_profiles[:, 0, :], h4, gld_depths, bias)
-    eq_rmse_S4, eq_corr_S4 = equivalent_average_statistic(pred_S, original_profiles[:, 1, :], h4, gld_depths, rmse)
-    eq_bias_S4, eq_corr_S4 = equivalent_average_statistic(pred_S, original_profiles[:, 1, :], h4, gld_depths, bias)
+    eq_rmse_T1, eq_corr_T1 = equivalent_average_statistic(T_pred1, T1, h1, gld_depths, rmse)
+    eq_bias_T1, eq_corr_T1 = equivalent_average_statistic(T_pred1, T1, h1, gld_depths, bias)
+    eq_rmse_S1, eq_corr_S1 = equivalent_average_statistic(S_pred1, S1, h1, gld_depths, rmse)
+    eq_bias_S1, eq_corr_S1 = equivalent_average_statistic(S_pred1, S1, h1, gld_depths, bias)
+    eq_rmse_T2, eq_corr_T2 = equivalent_average_statistic(T_pred2, T2, h2, gld_depths, rmse)
+    eq_bias_T2, eq_corr_T2 = equivalent_average_statistic(T_pred2, T2, h2, gld_depths, bias)
+    eq_rmse_S2, eq_corr_S2 = equivalent_average_statistic(S_pred2, S2, h2, gld_depths, rmse)
+    eq_bias_S2, eq_corr_S2 = equivalent_average_statistic(S_pred2, S2, h2, gld_depths, bias)
+    eq_rmse_T3, eq_corr_T3 = equivalent_average_statistic(T_pred3, T3, h3, gld_depths, rmse)
+    eq_bias_T3, eq_corr_T3 = equivalent_average_statistic(T_pred3, T3, h3, gld_depths, bias)
+    eq_rmse_S3, eq_corr_S3 = equivalent_average_statistic(S_pred3, S3, h3, gld_depths, rmse)
+    eq_bias_S3, eq_corr_S3 = equivalent_average_statistic(S_pred3, S3, h3, gld_depths, bias)
+    eq_rmse_T4, eq_corr_T4 = equivalent_average_statistic(T_pred4, T4, h4, gld_depths, rmse)
+    eq_bias_T4, eq_corr_T4 = equivalent_average_statistic(T_pred4, T4, h4, gld_depths, bias)
+    eq_rmse_S4, eq_corr_S4 = equivalent_average_statistic(S_pred4, S4, h4, gld_depths, rmse)
+    eq_bias_S4, eq_corr_S4 = equivalent_average_statistic(S_pred4, S4, h4, gld_depths, bias)
 
     correlation_T1 = calculate_correlation(T1, T_pred1_binned)
     correlation_S1 = calculate_correlation(S1, S_pred1_binned)
@@ -2095,8 +2003,8 @@ if __name__ == "__main__":
             pred_S,
             gem_temp,
             gem_sal,
-            temp_MLR_profiles,
-            sal_MLR_profiles,
+            old_pred_T,
+            old_pred_S,
         )
 
         print(
@@ -2147,38 +2055,6 @@ if __name__ == "__main__":
     # Compute density for each model
     print("\nComputing density profiles for vertical metrics...")
 
-    def compute_density_profiles(T_profiles, S_profiles, lat_arr, lon_arr, depth_arr, model_name, pres_data=None):
-        """Compute density profiles from T/S using EOS."""
-        n_prof, n_depth = T_profiles.shape
-        rho_profiles = np.full((n_prof, n_depth), np.nan)
-
-        # Use PRES data if available, otherwise use depth as pressure
-        if pres_data is not None:
-            p = pres_data.T  # (n_profiles, depth)
-        else:
-            # Pressure from depth (approximate: 1 dbar ≈ 1 m)
-            p = np.broadcast_to(depth_arr, (n_prof, n_depth))
-
-        # Process profile by profile to handle lat/lon
-        for i in range(n_prof):
-            T_prof = T_profiles[i, :]
-            S_prof = S_profiles[i, :]
-            lat_prof = lat_arr[i]
-            lon_prof = lon_arr[i]
-            p_prof = p[i, :]
-
-            # Only process if we have sufficient valid data
-            valid_mask = np.isfinite(T_prof) & np.isfinite(S_prof) & np.isfinite(p_prof)
-            if np.sum(valid_mask) >= 2:
-                try:
-                    _, _, rho_prof = eos_from_SP_T(S_prof, T_prof, p_prof, lon=lon_prof, lat=lat_prof)
-                    rho_profiles[i, :] = rho_prof
-                except Exception as e:
-                    if i < 5:  # Only print first few errors
-                        print(f"  Warning: EOS failed for {model_name} profile {i}: {e}")
-
-        return rho_profiles
-
     pres_for_eos = PRES_data if use_pres else None
     rho_11 = compute_density_profiles(T_11, S_11, lat_profiles, lon_profiles, depth_array, "NeSPReSO 1.1", pres_for_eos)
     rho_10 = compute_density_profiles(T_10, S_10, lat_profiles, lon_profiles, depth_array, "NeSPReSO 1.0", pres_for_eos)
@@ -2189,24 +2065,12 @@ if __name__ == "__main__":
     # Compute static stability metrics
     print("\nComputing static stability metrics...")
 
-    def compute_stability_metrics(rho_profiles, depth_arr, model_name):
-        """Compute static stability metrics for a set of profiles."""
-        # Reshape to (n_profiles, depth) - already in correct format
-        # metrics functions expect depth as last axis
-        stability = static_stability_metrics(rho_profiles, depth_arr, axis=-1, g=9.81)
-        return stability
-
     stability_11 = compute_stability_metrics(rho_11, depth_array, "NeSPReSO 1.1")
     stability_10 = compute_stability_metrics(rho_10, depth_array, "NeSPReSO 1.0")
     stability_orig = compute_stability_metrics(rho_orig, depth_array, "Argo")
 
     # Compute density smoothness metrics
     print("Computing density smoothness metrics...")
-
-    def compute_smoothness_metrics(rho_profiles, depth_arr, model_name, zmin=50.0, zmax=300.0):
-        """Compute density smoothness metrics for a set of profiles."""
-        smoothness = density_smoothness_metrics(rho_profiles, depth_arr, zmin=zmin, zmax=zmax, axis=-1)
-        return smoothness
 
     smoothness_11 = compute_smoothness_metrics(rho_11, depth_array, "NeSPReSO 1.1")
     smoothness_10 = compute_smoothness_metrics(rho_10, depth_array, "NeSPReSO 1.0")
