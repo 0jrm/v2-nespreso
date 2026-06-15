@@ -7,17 +7,34 @@ import os
 import pickle
 import sys
 import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from dataclasses import asdict
-
 from nespreso.config import AppConfig, density_penalty_dict
 from nespreso.determinism import get_device, set_seed
+
+
+@dataclass(frozen=True)
+class TrainingArtifacts:
+    """Dataset split, loaders, and trained model produced by ``run_training``."""
+
+    full_dataset: Any
+    train_dataset: Any
+    val_dataset: Any
+    test_dataset: Any
+    train_loader: DataLoader
+    val_loader: DataLoader
+    test_loader: DataLoader
+    trained_model: Any
+    device: torch.device
+    input_params: dict[str, bool]
+    input_dim: int
 
 
 def require_trained_model_path(cfg: AppConfig) -> str:
@@ -38,10 +55,6 @@ def require_trained_model_path(cfg: AppConfig) -> str:
 
 def _load_monolith():
     """Import the research monolith from the repo root."""
-    import importlib.util
-    import sys
-    from pathlib import Path
-
     loader_name = "nespreso_monolith_loader"
     if loader_name not in sys.modules:
         loader_path = Path(__file__).resolve().parents[2] / "tests" / "monolith_loader.py"
@@ -80,15 +93,8 @@ def apply_runtime_globals(m, cfg: AppConfig) -> None:
     m.DEVICE = get_device()
 
 
-def run_training(cfg: AppConfig) -> Path | None:
-    """
-    Build/load dataset pickle, split 0.7/0.15/0.15, train with early stopping.
-
-    Returns path to saved checkpoint when training; None when loading a trained model.
-    """
-    m = _load_monolith()
-    apply_runtime_globals(m, cfg)
-
+def _prepare_data_and_loaders(m, cfg: AppConfig) -> dict[str, Any]:
+    """Build or load the dataset pickle and train/val/test loaders."""
     model_cfg = cfg.model
     input_params = asdict(cfg.input_params)
     density_penalty_config = density_penalty_dict(cfg)
@@ -176,6 +182,43 @@ def run_training(cfg: AppConfig) -> Path | None:
         density_config=density_penalty_config,
     )
 
+    return {
+        "full_dataset": full_dataset,
+        "train_dataset": train_dataset,
+        "val_dataset": val_dataset,
+        "test_dataset": test_dataset,
+        "train_loader": train_loader,
+        "val_loader": val_loader,
+        "test_loader": test_loader,
+        "criterion": criterion,
+        "input_params": input_params,
+        "input_dim": input_dim,
+        "device": device,
+    }
+
+
+def run_training(cfg: AppConfig, *, return_artifacts: bool = False) -> Path | None | tuple[Path | None, TrainingArtifacts]:
+    """
+    Build/load dataset pickle, split 0.7/0.15/0.15, train with early stopping.
+
+    Returns path to saved checkpoint when training; None when loading a trained model.
+    When ``return_artifacts`` is true, also returns dataset split and trained model for
+    monolith post-training analysis.
+    """
+    m = _load_monolith()
+    apply_runtime_globals(m, cfg)
+
+    model_cfg = cfg.model
+    prep = _prepare_data_and_loaders(m, cfg)
+    full_dataset = prep["full_dataset"]
+    train_loader = prep["train_loader"]
+    val_loader = prep["val_loader"]
+    test_loader = prep["test_loader"]
+    criterion = prep["criterion"]
+    input_params = prep["input_params"]
+    input_dim = prep["input_dim"]
+    device = prep["device"]
+
     summary_writer = None
     if cfg.monitor.tensorboard:
         from torch.utils.tensorboard import SummaryWriter
@@ -183,6 +226,7 @@ def run_training(cfg: AppConfig) -> Path | None:
         summary_writer = SummaryWriter(log_dir=cfg.monitor.log_dir)
 
     save_model_path: Path | None = None
+    trained_model = None
 
     if cfg.runtime.load_trained_model:
         trained_model_path = require_trained_model_path(cfg)
@@ -244,5 +288,21 @@ def run_training(cfg: AppConfig) -> Path | None:
 
     if summary_writer is not None:
         summary_writer.close()
+
+    if return_artifacts:
+        artifacts = TrainingArtifacts(
+            full_dataset=prep["full_dataset"],
+            train_dataset=prep["train_dataset"],
+            val_dataset=prep["val_dataset"],
+            test_dataset=prep["test_dataset"],
+            train_loader=prep["train_loader"],
+            val_loader=prep["val_loader"],
+            test_loader=prep["test_loader"],
+            trained_model=trained_model,
+            device=prep["device"],
+            input_params=prep["input_params"],
+            input_dim=prep["input_dim"],
+        )
+        return save_model_path, artifacts
 
     return save_model_path

@@ -1721,135 +1721,32 @@ def load_all_models(models_dir, device, input_dim, layers_config, n_components, 
 
 # %%
 if __name__ == "__main__":
-    # Configurable parameters
+    from dataclasses import asdict
+
+    from nespreso.config import load_config
+    from nespreso.runner import run_training
+
+    cfg = load_config()
+
+    # Monolith-only visualization knobs (not in YAML config).
     bin_size = 1  # bin size in degrees
-    n_components = 15
-    layers_config = [512, 512]
-    batch_size = 512
-    min_depth = 0
-    max_depth = 1800
-    dropout_prob = 0.2
-    epochs = 8000
-    patience = 500
-    learning_rate = 0.001
-    train_size = 0.7
-    val_size = 0.15
-    test_size = 0.15
-    input_params = {
-        "timecos": True,
-        "timesin": True,
-        "latcos": True,
-        "latsin": True,
-        "loncos": True,
-        "lonsin": True,
-        "sat": True,  # Use satellite data?
-        "sst": True,  # First value of temperature if sat = false, OISST if sat = true
-        "sss": True,  # similar to above
-        "ssh": True,  # similar to above
-    }
-    # Configuration for the frozen density surrogate regularization terms
-    density_penalty_config = {
-        "enabled": True,
-        "checkpoint": "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rhoMLP_w32_d3_best.pt",
-        "stats_path": "/unity/g2/jmiranda/SubsurfaceFields/2025-2_OCP-project/TEOS-ML/rho_norm_stats.npz",
-        "stab_weight": 0.001,
-        "smooth_weight": 0.001,
-        "stability_tol": 1e-6,
-        "smooth_window": (0, 500),
-    }
     num_samples = 1  # profiles that will be plotted
-    dataset_pickle_file = "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/config_dataset_full.pkl"
 
-    # Load or create the dataset
-    if os.path.exists(dataset_pickle_file) and load_dataset_file:
-        # Load data from the pickle file
-        with open(dataset_pickle_file, "rb") as file:
-            data = pickle.load(file)
-            full_dataset = data["full_dataset"]
-            full_dataset.n_components = n_components
-            full_dataset.min_depth = min_depth
-            full_dataset.max_depth = max_depth
-            full_dataset.input_params = input_params
-            if not load_trained_model:
-                full_dataset.reload()
-    else:
-        # Load and split data
-        full_dataset = TemperatureSalinityDataset(
-            n_components=n_components, input_params=input_params, min_depth=min_depth, max_depth=max_depth
-        )
-
-        # Save data to the pickle file
-        with open(dataset_pickle_file, "wb") as file:
-            data = {
-                "min_depth": min_depth,
-                "max_depth": max_depth,
-                "epochs": epochs,
-                "patience": patience,
-                "n_components": n_components,
-                "batch_size": batch_size,
-                "learning_rate": learning_rate,
-                "dropout_prob": dropout_prob,
-                "layers_config": layers_config,
-                "input_params": input_params,
-                "train_size": train_size,
-                "val_size": val_size,
-                "test_size": test_size,
-                "full_dataset": full_dataset,
-            }
-            pickle.dump(data, file)
-
-    # Split the dataset
-    train_dataset, val_dataset, test_dataset = split_dataset(full_dataset, train_size, val_size, test_size)
-
-    # Dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-    subset_indices = val_loader.dataset.indices
-    full_dataset.calc_gem(subset_indices)
-
-    # Compute the input dimension dynamically
-    input_dim = sum(val for val in input_params.values()) - 1 * input_params["sat"]
-
-    # Check CUDA availability
-    device = DEVICE
-
-    # # Use multiple GPUs if available
-    # if torch.cuda.device_count() > 1:
-    #     print(f"Using {torch.cuda.device_count()} GPUs!")
-    #     multi_gpu = True
-    # else:
-    #     multi_gpu = False
-
-    # Loss function using the variance of the PCA components divided by the varance of each PC as weights
-    weights = full_dataset.get_pca_weights()
-
-    # Print explained variance
-    print(
-        f"Explained Variance - T: {(sum(full_dataset.pca_temp.explained_variance_ratio_) * 100):.1f}% - S: {(100 * sum(full_dataset.pca_sal.explained_variance_ratio_)):.1f}%"
-    )
-
-    # Set the appropriate loss
-    # criterion = genWeightedMSELoss(n_components=n_components,
-    #                                weights=weights,
-    #                                device=device)
-    # criterion = PCALoss(temp_pca=train_dataset.dataset, #best so far
-    #                             sal_pca=train_dataset.dataset,
-    #                             n_components=n_components)
-    criterion = CombinedPCALoss(
-        temp_pca=train_dataset.dataset,
-        sal_pca=train_dataset.dataset,
-        n_components=n_components,
-        weights=weights,
-        device=device,
-        density_config=density_penalty_config,
-    )
-
-    # Print parameters and dataset size
-    true_params = [param for param, value in input_params.items() if value]
+    model_cfg = cfg.model
+    input_params = asdict(cfg.input_params)
+    n_components = model_cfg.n_components
+    layers_config = list(model_cfg.layers_config)
+    batch_size = model_cfg.batch_size
+    min_depth = model_cfg.min_depth
+    max_depth = model_cfg.max_depth
+    dropout_prob = model_cfg.dropout_prob
+    learning_rate = model_cfg.learning_rate
+    train_size = model_cfg.train_size
+    val_size = model_cfg.val_size
+    test_size = model_cfg.test_size
 
     def printParams():
+        true_params = [param for param, value in input_params.items() if value]
         print(f"\nNumber of profiles: {len(full_dataset)}")
         print("Parameters used:", ", ".join(true_params))
         print(f"Min depth: {min_depth}, Max depth: {max_depth}")
@@ -1860,95 +1757,19 @@ if __name__ == "__main__":
         print(f"Train/test/validation split: {train_size}/{test_size}/{val_size}")
         print(f"Layer configuration: {layers_config}\n")
 
+    _save_model_path, artifacts = run_training(cfg, return_artifacts=True)
+    full_dataset = artifacts.full_dataset
+    train_dataset = artifacts.train_dataset
+    val_dataset = artifacts.val_dataset
+    test_dataset = artifacts.test_dataset
+    train_loader = artifacts.train_loader
+    val_loader = artifacts.val_loader
+    test_loader = artifacts.test_loader
+    trained_model = artifacts.trained_model
+    device = artifacts.device
+    input_dim = artifacts.input_dim
+
     printParams()
-
-    if load_trained_model:
-        # Load model and PCA components
-        # model_path = '/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models/model_Test Loss: 0.8945_2024-10-09 20:35:59_sat.pth' # old model
-        model_path = "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models/ocp_model_Test Loss: 0.9163_2025-11-16 10:03:45_sat.pth"
-
-        checkpoint = torch.load(model_path, map_location=torch.device(DEVICE), weights_only=False)
-
-        # Load model
-        trained_model = PredictionModel(
-            input_dim=input_dim, layers_config=layers_config, output_dim=n_components * 2, dropout_prob=dropout_prob
-        )
-        trained_model.load_state_dict(checkpoint["model_state_dict"])
-        trained_model.to(DEVICE)
-
-        # # Use multiple GPUs if available
-        # if multi_gpu:
-        #     model = nn.DataParallel(model)
-
-        # Load PCA components from checkpoint
-        pca_temp = checkpoint["pca_temp"]
-        pca_sal = checkpoint["pca_sal"]
-        input_params = checkpoint["input_params"]
-
-        # IMPORTANT: Update the dataset's PCA objects to match the checkpoint
-        # This ensures inverse_transform uses the correct PCA objects
-        print("Updating dataset PCA objects to match loaded model checkpoint...")
-        full_dataset.pca_temp = pca_temp
-        full_dataset.pca_sal = pca_sal
-        print("Dataset PCA objects updated.")
-        print(f"Using loaded model from: {model_path}")
-    else:
-        for run in range(n_runs):
-            print(f"Run {run + 1}/{n_runs}")
-
-            # Create the model
-            model = PredictionModel(
-                input_dim=input_dim, layers_config=layers_config, output_dim=n_components * 2, dropout_prob=dropout_prob
-            )
-            model.to(DEVICE)
-
-            # # Use multiple GPUs if available
-            # if multi_gpu:
-            #     model = nn.DataParallel(model)
-
-            optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-            # Start timer
-            start_time = time.perf_counter()
-
-            # Train the model
-            trained_model = train_model(model, train_loader, val_loader, criterion, optimizer, device, epochs, patience)
-
-            end_time = time.perf_counter()
-            # Calculate elapsed time
-            elapsed_time = end_time - start_time
-            print(f"NeSPReSO 1.1 train: {elapsed_time:.2f} seconds.")
-
-            # Test evaluation
-            test_loss = evaluate_model(trained_model, test_loader, criterion, device)
-            print(f"Test Loss: {test_loss:.4f}")
-
-            # Save the model and PCA components
-            save_model_path = "/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models/ocp_model_"
-            save_model_path += f"Test Loss: {test_loss:.4f}" + "_"
-            suffix = ".pth"
-            if input_params["sat"]:
-                suffix = "_sat.pth"
-
-            now = datetime.now()
-            now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-            save_model_path += now_str + suffix
-
-            pca_temp = full_dataset.pca_temp
-            pca_sal = full_dataset.pca_sal
-
-            # save_model_path = '/unity/g2/jmiranda/SubsurfaceFields/GEM_SubsurfaceFields/saved_models/model_Test Loss: 0.8945_2024-10-09 20:35:59_sat.pth'
-
-            # Save checkpoint with model state and PCA components
-            checkpoint = {
-                "model_state_dict": trained_model.state_dict(),
-                "pca_temp": full_dataset.pca_temp,
-                "pca_sal": full_dataset.pca_sal,
-                "input_params": input_params,
-            }
-            torch.save(checkpoint, save_model_path)
-            print(f"Saved model and PCA components to {save_model_path}")
-            print(f"Using newly trained model from: {save_model_path}")
 
     print("Statistics from the last run:")
     print("Method & # profiles & Time (ms) & Time per profile (µs)")

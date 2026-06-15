@@ -9,6 +9,12 @@ from pathlib import Path
 
 def load_monolith():
     """Import the research monolith from the repo root."""
+    main = sys.modules.get("__main__")
+    if main is not None:
+        main_file = getattr(main, "__file__", None)
+        if main_file and Path(main_file).name == "singleFileModel_SAT_stats4verticalProj_meeting20260203.py":
+            return main
+
     root = Path(__file__).resolve().parents[1]
     monolith_path = root / "singleFileModel_SAT_stats4verticalProj_meeting20260203.py"
     if not monolith_path.exists():
