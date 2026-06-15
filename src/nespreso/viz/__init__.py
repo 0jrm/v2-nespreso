@@ -1,5 +1,7 @@
 """NeSPReSO visualization helpers."""
 
+from nespreso.viz.coefficients import plot_coefficients_heatmap
+from nespreso.viz.fields import plot_field, plot_field_subplot
 from nespreso.viz.maps import (
     calculate_average_in_bin,
     plot_bin_map,
@@ -7,7 +9,6 @@ from nespreso.viz.maps import (
     plot_residual_profiles_for_top_bins,
     plot_rmse_on_ax,
 )
-from nespreso.viz.fields import plot_field, plot_field_subplot
 from nespreso.viz.profiles import (
     calculate_bias,
     filter_by_season,
@@ -20,6 +21,7 @@ __all__ = [
     "calculate_bias",
     "filter_by_season",
     "plot_bin_map",
+    "plot_coefficients_heatmap",
     "plot_comparison_maps",
     "plot_field",
     "plot_field_subplot",
