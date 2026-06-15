@@ -21,6 +21,23 @@ def matlab2datetime(matlab_datenum: float) -> datetime:
     return datenum_to_datetime(matlab_datenum)
 
 
+def get_month(t) -> int:
+    """Return calendar month from a datetime or MATLAB datenum."""
+    return t.month if hasattr(t, "month") else datenum_to_datetime(t).month
+
+
+def get_season(date) -> str:
+    """Map a datetime to meteorological season (Northern Hemisphere)."""
+    month = date.month
+    if month in [3, 4, 5]:
+        return "Spring"
+    if month in [6, 7, 8]:
+        return "Summer"
+    if month in [9, 10, 11]:
+        return "Autumn"
+    return "Winter"
+
+
 def datenums_to_datetimes(matlab_datenums):
     """
     Convert an array of MATLAB datenum values to Python datetime objects.

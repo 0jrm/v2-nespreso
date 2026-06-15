@@ -1,4 +1,4 @@
-# NeSPReSO Refactor Handoff — Continue from Phase 7 extraction
+# NeSPReSO Refactor Handoff — Continue from Phase 8 extraction
 
 We are refactoring the NeSPReSO monolith:
 
@@ -12,97 +12,75 @@ Branch:
 
 `refactor/modularize`
 
-## Phase 7 — in progress (viz + analysis helpers extracted)
+## Phase 8 — in progress (experiments peel)
 
-### Viz (complete)
+### Helpers hoisted from nested `__main__`
 
-Per `phase7.txt`, all plotting helpers are now under `src/nespreso/viz/`:
+| Symbol | Path |
+|---|---|
+| `get_month`, `get_season` | `src/nespreso/utils/time.py` |
+| `count_profiles_per_month` | `src/nespreso/analysis/monthly.py` |
+| `print_training_params` | `src/nespreso/reporting.py` |
 
-| Module | Path | Contents |
-|---|---|---|
-| Profiles | `src/nespreso/viz/profiles.py` | `visualize_combined_results`, `filter_by_season`, `seasonal_plots`, `calculate_bias` |
-| Maps | `src/nespreso/viz/maps.py` | `calculate_average_in_bin`, `plot_bin_map`, `plot_rmse_on_ax`, `plot_comparison_maps`, `plot_residual_profiles_for_top_bins` |
-| Fields | `src/nespreso/viz/fields.py` | `plot_field`, `plot_field_subplot` |
-| Coefficients | `src/nespreso/viz/coefficients.py` | `plot_coefficients_heatmap` |
+### Experiment library (`src/nespreso/experiments/`)
 
-### Analysis (geo/time, depth stats, MLR, density)
+| Module | Contents |
+|---|---|
+| `validation_context.py` | `ValidationContext`, `build_validation_context` — post-training preds, GEM, legacy 1.0, ISOP stats |
+| `pca_regression.py` | `run_pca_regression_baseline` — MLR fit, depth RMSE/bias figure, coefficient heatmaps |
+| `density_stability.py` | `run_density_stability` — vertical density/stability/smoothness comparison plots |
+| `glider_mission.py` | `run_glider_mission` — four glider crossings + AVISO overlay maps |
+| `common.py` | `build_experiment_parser`, `load_cfg_and_artifacts`, matplotlib setup |
 
-| Module | Path | Contents |
-|---|---|---|
-| Glider | `src/nespreso/analysis/glider.py` | `get_glider_predictions`, `bin_data` |
-| Correlation | `src/nespreso/analysis/correlation.py` | `calculate_correlation` |
-| Residuals | `src/nespreso/analysis/residuals.py` | `compute_profile_residual`, `compute_depth_rmse_bias` |
-| Comparison | `src/nespreso/analysis/comparison.py` | `isop_depth_indices`, `default_depth_intervals`, `compute_season_masked_depth_rmse_bias`, `compute_depth_interval_metrics` |
-| Depth stats | `src/nespreso/analysis/depth_stats.py` | `average_depth`, `histogram_available_depths`, `equivalent_average_statistic` |
-| MLR baseline | `src/nespreso/analysis/mlr.py` | `prepare_features`, `fit_pcs_regression_exact_gpu`, `predict_pcs_exact_gpu` |
-| Density | `src/nespreso/analysis/density.py` | `compute_density_profiles`, `compute_stability_metrics`, `compute_smoothness_metrics` |
+### Runnable scripts (`experiments/`)
 
-### Utils (geo/time)
+- `experiments/pca_regression_baseline.py` — `--config`, `--bin-size`
+- `experiments/density_stability.py`
+- `experiments/glider_mission.py`
 
-| Module | Path | Contents |
-|---|---|---|
-| Geo | `src/nespreso/utils/geo.py` | `haversine`, `calculate_distances` |
-| Time | `src/nespreso/utils/time.py` | `datenum_to_datetime`, `matlab2datetime`, `datenums_to_datetimes` |
-
-Monolith re-exports all symbols. `__main__` uses hoisted helpers throughout; MLR baseline reinstated from `singleFileModel_SAT.py`; NeSPReSO 1.0 comparisons use `old_pred_*` residuals separately from MLR.
+Monolith `__main__` delegates to `build_validation_context` + the three experiment runners above. Steric-height, validation maps, seasonal plots, depth-interval tables, and monthly distribution remain inline until peeled.
 
 ### Pin tests added
 
-- `tests/test_viz.py`, `tests/test_viz_fields.py`, `tests/test_viz_coefficients.py` — viz golden pins
-- `tests/test_analysis.py` — analysis golden pins (seeds `401`–`404`)
-- `tests/test_geo_time.py` — geo/time golden pins (seed `405`)
-- `tests/test_analysis_depth_stats.py` — depth-bin stats golden pins (seeds `406`–`407`)
-- `tests/test_mlr.py` — MLR baseline golden pins (seed `408`, CPU-pinned)
-- `tests/test_analysis_density.py` — density/stability golden pins (seeds `409`–`410`)
-- `tests/golden/analysis_synthetic.json`, `tests/golden/geo_depth_mlr_synthetic.json`, `tests/golden/analysis_density_synthetic.json`
+- `tests/test_experiment_helpers.py` — `get_season`, `get_month`, `count_profiles_per_month`
 
-### Resolved human-review items
+## Phase 7 — complete
 
-- **`calculate_bias`**: now takes explicit `min_depth` / `max_depth` parameters (defaults `20` / `2000`); removed unused module-global `depths` variable.
-- **MLR vs NeSPReSO 1.0**: real MLR pipeline restored (`prepare_features` → GPU fit → PCA inverse); NeSPReSO 1.0 kept on `old_pred_*` for maps, seasonal plots, and depth-interval tables; profile RMSE/bias figure shows ISOP, GEM, MLR, 1.0, 1.1.
-- **`equivalent_average_statistic`**: fixed mixed 1 m prediction / 5 m glider-target binning; glider call sites now pass crossing predictions (`T_pred1`…`T_pred4`) instead of validation `pred_T`.
-- **`plot_field`**: still re-exported but unused in `__main__` (only `plot_field_subplot` called); kept for API parity.
-- **`get_glider_predictions`**: hoisted version correctly uses the `model` parameter; `loader` remains unused (preserved verbatim).
-
-## Phase 6 — complete
-
-Per `phase6.txt` (inference portion; `train.py` was already extracted):
-
-| Module | Path | Contents |
-|---|---|---|
-| Inference | `src/nespreso/inference.py` | `get_predictions`, `get_inputs`, `predict_with_numpy`, `get_predictions_torchscript`, `load_all_models` |
+Per `phase7.txt`, all plotting and analysis helpers are under `src/nespreso/viz/` and `src/nespreso/analysis/`.
 
 ## Verification
 
 ```bash
-python -m compileall src singleFileModel_SAT_stats4verticalProj_meeting20260203.py
+python -m compileall src singleFileModel_SAT_stats4verticalProj_meeting20260203.py experiments
 
 pytest tests/test_smoke.py tests/test_config_paths.py tests/test_prepare_inputs.py \
   tests/test_satellite_loader.py tests/test_argo_loader.py tests/test_splits.py \
   tests/test_pca_inverse.py tests/test_losses.py tests/test_inference.py \
   tests/test_viz.py tests/test_viz_fields.py tests/test_viz_coefficients.py \
   tests/test_analysis.py tests/test_geo_time.py tests/test_analysis_depth_stats.py \
-  tests/test_mlr.py tests/test_analysis_density.py -q
+  tests/test_mlr.py tests/test_analysis_density.py tests/test_experiment_helpers.py -q
 
 srun --ntasks=1 --cpus-per-task=8 --gres=gpu:1 \
   pytest tests/test_characterization.py tests/test_inference.py \
   -m requires_unity --run-unity -q
 ```
 
-Last run: all passed (65 unit tests, 2 skipped; sklearn unpickle-version warnings only; goldens at `1e-6`).
+## Next sprint: Phase 8 continued
 
-## Next sprint: Phase 8 — peel `__main__` orchestration into `experiments/`
+Remaining inline `__main__` blocks to peel per `phase8.txt`:
 
-Remaining nested `__main__` helpers:
+1. `experiments/train.py` (thin wrapper; training already in `nespreso.cli`)
+2. `experiments/validation_maps.py` — RMSE/bias maps, seasonal depth curves, comparison maps
+3. `experiments/steric_depth_stats.py` — steric-height / ISOP depth-bin orchestration (~lines 433–933)
+4. `experiments/compare_legacy_nespreso.py` — timing / ensemble / legacy 1.0 load (now in `validation_context`; may split)
+5. `experiments/monthly_distribution.py` — train/val/test profiles-per-month bar chart
 
-- `printParams`, `get_season`, `_get_month`, `count_profiles_per_month`
-- Steric-height / ISOP depth-bin orchestration blocks (helpers already hoisted)
+Then Phase 9: dead-code pass, `ARCHITECTURE.md`, monolith retirement.
 
-Recommended sequence:
+## Needs human review
 
-1. Create `experiments/pca_regression_baseline.py`, `experiments/density_stability.py`, `experiments/glider_mission.py` importing library helpers.
-2. Peel remaining orchestration blocks per `phase8.txt`.
-3. Leave monolith trunk importable until Phase 9 retirement.
+- **Glider satellite cache**: monolith previously referenced undefined `data` / `dataset_pickle_file` after `run_training` refactor; `run_glider_mission` now loads the dataset pickle explicitly before the `sss1` cache branch.
+- **`lon_val` binning** at validation setup: `lon_val = np.floor(lon_val) + bin_size / 2` (preserved verbatim from monolith).
 
 ## Rules reminder
 

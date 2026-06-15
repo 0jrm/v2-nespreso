@@ -23,6 +23,7 @@ from nespreso.analysis.mlr import (
     predict_pcs_exact_gpu,
     prepare_features,
 )
+from nespreso.analysis.monthly import count_profiles_per_month
 from nespreso.analysis.residuals import compute_depth_rmse_bias, compute_profile_residual
 
 __all__ = [
@@ -36,6 +37,7 @@ __all__ = [
     "compute_season_masked_depth_rmse_bias",
     "compute_smoothness_metrics",
     "compute_stability_metrics",
+    "count_profiles_per_month",
     "default_depth_intervals",
     "equivalent_average_statistic",
     "fit_pcs_regression_exact_gpu",
