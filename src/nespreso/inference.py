@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import glob
 import os
+from typing import Any
 
 import numpy as np
 import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
 
 from nespreso.determinism import get_device
 from nespreso.models.mlp import PredictionModel
@@ -14,7 +17,11 @@ from nespreso.models.mlp import PredictionModel
 DEVICE = get_device()
 
 
-def get_predictions(model, dataloader, device):
+def get_predictions(
+    model: nn.Module,
+    dataloader: DataLoader,
+    device: torch.device,
+) -> np.ndarray:
     """
     Get model's predictions on the provided data with CUDA support.
 
@@ -43,7 +50,7 @@ def get_predictions(model, dataloader, device):
     return np.array(predictions)
 
 
-def get_inputs(dataloader, device):
+def get_inputs(dataloader: DataLoader, device: torch.device) -> np.ndarray:
     """
     Get inputs from the provided dataloader with CUDA support.
 
@@ -67,7 +74,11 @@ def get_inputs(dataloader, device):
     return np.array(all_inputs)
 
 
-def predict_with_numpy(model, numpy_input, device=DEVICE):
+def predict_with_numpy(
+    model: nn.Module,
+    numpy_input: np.ndarray,
+    device: torch.device | str = DEVICE,
+) -> np.ndarray:
     # Convert numpy array to tensor
     tensor_input = torch.tensor(numpy_input, dtype=torch.float32)
 
@@ -89,7 +100,12 @@ def predict_with_numpy(model, numpy_input, device=DEVICE):
     return numpy_predictions
 
 
-def get_predictions_torchscript(model, dataloader, device, input_params_check):
+def get_predictions_torchscript(
+    model: torch.jit.ScriptModule,
+    dataloader: DataLoader,
+    device: torch.device,
+    input_params_check: dict[str, bool],
+) -> np.ndarray:
     """Get predictions from TorchScript model."""
     model.to(device)
     model.eval()
@@ -108,7 +124,14 @@ def get_predictions_torchscript(model, dataloader, device, input_params_check):
     return np.array(predictions)
 
 
-def load_all_models(models_dir, device, input_dim, layers_config, n_components, dropout_prob):
+def load_all_models(
+    models_dir: str,
+    device: torch.device,
+    input_dim: int,
+    layers_config: list[int],
+    n_components: int,
+    dropout_prob: float,
+) -> list[PredictionModel]:
     model_paths = sorted(glob.glob(os.path.join(models_dir, "model_Test Loss: *.pth")))
     models = []
     for model_path in model_paths:

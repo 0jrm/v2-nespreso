@@ -1,6 +1,6 @@
-# NeSPReSO Refactor Handoff — Phase 9 in progress
+# NeSPReSO Refactor Handoff — Phase 9 complete
 
-We are refactoring the NeSPReSO monolith:
+We refactored the NeSPReSO monolith:
 
 `singleFileModel_SAT_stats4verticalProj_meeting20260203.py`
 
@@ -40,15 +40,14 @@ All `phase8.txt` experiment scripts exist under `experiments/` with library modu
 - `steric_depth_stats.py`
 - `depth_interval_stats.py`
 - `monthly_distribution.py`
+- `run_all.py` (full pipeline)
 
-Monolith `__main__` is a thin orchestrator: `run_training` → `build_validation_context` → experiment runners.
+## Phase 9 — complete
 
-## Phase 9 — in progress (per `phase9.txt`)
-
-1. ~~Write `ARCHITECTURE.md`~~ — done (`ARCHITECTURE.md`).
-2. ~~Dead-code pass on monolith commented blocks~~ — done; archived under `legacy/removed_experiments/`.
-3. Type hints / docstrings on public APIs — in progress (`analysis/*`, `utils/geo.py`, `utils/time.py` annotated; `train.py` / `inference.py` / `config.py` already typed).
-4. ~~Monolith relocated to legacy~~ — forward path is `experiments/run_all.py`; see **Monolith retirement** below.
+1. `ARCHITECTURE.md` — module map, data flow, runbook, domain quirks.
+2. Dead-code pass — six commented `__main__` blocks archived under `legacy/removed_experiments/`.
+3. Type hints / docstrings on public APIs — `analysis/*`, `utils/*`, `train.py`, `inference.py`, `config.py`, `data/*`, `io/*`, `viz/*`, `losses.py`, `experiments/*`, `runner.py`.
+4. Monolith relocated to `legacy/monolith/`; forward path is `experiments/run_all.py` (repo root is a deprecation shim).
 
 ## Removed — archived
 
@@ -81,11 +80,12 @@ Full monolith snapshot (pre-removal): `legacy/monolith/singleFileModel_SAT_stats
 | Golden / characterization tests | Package-only (`565069c`) |
 | Dataset pickle on disk | `__main__.TemperatureSalinityDataset`; `pickle_compat` remaps |
 
-**Remaining (optional):**
+**Deferred (post–Phase 9, optional):**
 
 1. Phase B re-save dataset pickle (`docs/PICKLE_MIGRATION.md`).
 2. Split config vs dataset artifact (`docs/CONFIG_DATASET.md`).
 3. Remove repo-root deprecation shim once callers migrate to `experiments/run_all.py`.
+4. Infrastructure port: `ingest/` from `global_nespreso/old/data_extract/` (`plan.md` Step 4).
 
 ## Verification
 

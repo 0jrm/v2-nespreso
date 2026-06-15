@@ -5,8 +5,15 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 import cmocean.cm as ccm
+from matplotlib.figure import Figure
 
-def plot_field(data, distances, depths, variable_name, title):
+def plot_field(
+    data: np.ndarray,
+    distances: np.ndarray,
+    depths: np.ndarray,
+    variable_name: str,
+    title: str,
+) -> None:
     """
     Plot the temperature or salinity field over distance.
 
@@ -55,7 +62,15 @@ def plot_field(data, distances, depths, variable_name, title):
     ax.invert_yaxis()
     plt.show()
 
-def plot_field_subplot(data, distances, depths, variable_name, title, subplot_pos, fig):
+def plot_field_subplot(
+    data: np.ndarray,
+    distances: np.ndarray,
+    depths: np.ndarray,
+    variable_name: str,
+    title: str,
+    subplot_pos: int,
+    fig: Figure,
+) -> None:
     """
     Plot a field as a subplot.
 

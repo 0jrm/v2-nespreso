@@ -1,8 +1,23 @@
+"""Input feature tensor construction from surface observations."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Mapping
+
 import numpy as np
 import torch
 
 
-def prepare_inputs(time, lat, lon, sss, sst, ssh, input_params):
+def prepare_inputs(
+    time: list[datetime] | np.ndarray,
+    lat: np.ndarray,
+    lon: np.ndarray,
+    sss: np.ndarray,
+    sst: np.ndarray,
+    ssh: np.ndarray,
+    input_params: Mapping[str, bool],
+) -> torch.Tensor:
     """
     Transforms the individual data arrays into the format expected by the model.
 

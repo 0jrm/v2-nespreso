@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 
 
-def sklearn_inverse_transform_pcs(pcs, pca_temp, pca_sal, n_components):
+def sklearn_inverse_transform_pcs(
+    pcs: Any,
+    pca_temp: Any,
+    pca_sal: Any,
+    n_components: int,
+) -> tuple[Any, Any]:
     """
     Inverse the PCA transformation.
 
@@ -22,19 +29,23 @@ def sklearn_inverse_transform_pcs(pcs, pca_temp, pca_sal, n_components):
     return temp_profiles, sal_profiles
 
 
-def torch_reconstruct_profile(pcs, components, mean):
+def torch_reconstruct_profile(
+    pcs: torch.Tensor,
+    components: torch.Tensor,
+    mean: torch.Tensor,
+) -> torch.Tensor:
     # Reconstruct profiles: (batch, n_components) @ (n_components, n_features) + (1, n_features)
     return pcs @ components + mean
 
 
 def torch_reconstruct_profiles(
-    temp_pcs,
-    sal_pcs,
-    temp_components,
-    sal_components,
-    temp_mean,
-    sal_mean,
-):
+    temp_pcs: torch.Tensor,
+    sal_pcs: torch.Tensor,
+    temp_components: torch.Tensor,
+    sal_components: torch.Tensor,
+    temp_mean: torch.Tensor,
+    sal_mean: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
     temp_profiles = torch_reconstruct_profile(temp_pcs, temp_components, temp_mean)
     sal_profiles = torch_reconstruct_profile(sal_pcs, sal_components, sal_mean)
     return temp_profiles, sal_profiles

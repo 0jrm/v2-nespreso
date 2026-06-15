@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any
+
 import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
@@ -9,16 +12,16 @@ import cartopy.crs as ccrs
 from nespreso.utils.time import matlab2datetime
 
 def visualize_combined_results(
-    true_values,
-    gem_temp,
-    gem_sal,
-    predicted_values,
-    sst_values,
-    ssh_values,
-    min_depth=20,
-    max_depth=2000,
-    num_samples=5,
-):
+    true_values: tuple[np.ndarray, np.ndarray],
+    gem_temp: np.ndarray,
+    gem_sal: np.ndarray,
+    predicted_values: tuple[np.ndarray, np.ndarray],
+    sst_values: np.ndarray,
+    ssh_values: np.ndarray,
+    min_depth: float = 20,
+    max_depth: float = 2000,
+    num_samples: int = 5,
+) -> None:
     # TODO: add date to plot
     """
     Visualize the true vs. predicted vs. GEM approximated values for a sample of profiles and their differences.
@@ -152,7 +155,7 @@ def visualize_combined_results(
     accuracy_gain_sal = 100 * (gem_sal_se - nn_sal_se) / gem_sal_se
 
 
-def filter_by_season(data, dates, season):
+def filter_by_season(data: list[Any], dates: list[datetime], season: str) -> list[Any]:
     SEASONS = {"Winter": [12, 1, 2], "Spring": [3, 4, 5], "Summer": [6, 7, 8], "Fall": [9, 10, 11]}
     months = SEASONS[season]
     indices = [i for i, date in enumerate(dates) if matlab2datetime(date).month in months]
@@ -160,18 +163,18 @@ def filter_by_season(data, dates, season):
 
 
 def seasonal_plots(
-    lat_val,
-    lon_val,
-    dates_val,
-    original_profiles,
-    gem_temp,
-    gem_sal,
-    val_predictions,
-    sst_inputs,
-    ssh_inputs,
-    max_depth,
-    num_samples,
-):
+    lat_val: np.ndarray,
+    lon_val: np.ndarray,
+    dates_val: list[datetime],
+    original_profiles: tuple[np.ndarray, np.ndarray],
+    gem_temp: np.ndarray,
+    gem_sal: np.ndarray,
+    val_predictions: tuple[np.ndarray, np.ndarray],
+    sst_inputs: np.ndarray,
+    ssh_inputs: np.ndarray,
+    max_depth: float,
+    num_samples: int,
+) -> None:
     seasons = ["Winter", "Spring", "Summer", "Fall"]
     total_samples = len(lat_val)
     indexes = np.arange(total_samples)
@@ -212,7 +215,14 @@ def seasonal_plots(
         )
 
 
-def calculate_bias(true_values, predicted_values, gem_temp, gem_sal, min_depth=20, max_depth=2000):
+def calculate_bias(
+    true_values: np.ndarray,
+    predicted_values: tuple[np.ndarray, np.ndarray],
+    gem_temp: np.ndarray,
+    gem_sal: np.ndarray,
+    min_depth: float = 20,
+    max_depth: float = 2000,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     gem_temp_bias = gem_temp.T - true_values[:, 0, :]
     gem_sal_bias = gem_sal.T - true_values[:, 1, :]
 

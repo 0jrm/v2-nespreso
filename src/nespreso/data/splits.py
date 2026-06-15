@@ -1,24 +1,35 @@
 """Train/val/test dataset splitting helpers."""
 
-from torch.utils.data import Subset, random_split
+from __future__ import annotations
+
+from typing import Any
+
+from torch.utils.data import Dataset, Subset, random_split
 
 
 class IndexedSubset(Subset):
     """Subset wrapper that also returns the original dataset index."""
 
-    def __init__(self, subset):
+    def __init__(self, subset: Subset) -> None:
         super().__init__(subset.dataset, subset.indices)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> tuple[Any, Any, int]:
         inputs, profiles = super().__getitem__(idx)
         original_idx = self.indices[idx]
         return inputs, profiles, original_idx
 
-    def __getitems__(self, indices):
+    def __getitems__(self, indices: list[int]) -> list[tuple[Any, Any, int]]:
         return [self.__getitem__(idx) for idx in indices]
 
 
-def split_dataset(dataset, train_size, val_size, test_size, batch_size=32, use_batches=True):
+def split_dataset(
+    dataset: Dataset,
+    train_size: float,
+    val_size: float,
+    test_size: float,
+    batch_size: int = 32,
+    use_batches: bool = True,
+) -> tuple[IndexedSubset, IndexedSubset, IndexedSubset]:
     """
     Splits the dataset into training, validation, and test sets.
 

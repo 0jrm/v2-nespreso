@@ -1,5 +1,9 @@
 """Satellite data loading and interpolation for NeSPReSO."""
 
+from __future__ import annotations
+
+from datetime import datetime
+
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from tqdm import tqdm
@@ -7,7 +11,11 @@ from tqdm import tqdm
 from nespreso.io.satellite_readers import get_aviso_by_date, get_sss_by_date, get_sst_by_date
 
 
-def load_satellite_data(TIME, LAT, LON):
+def load_satellite_data(
+    TIME: list[datetime],
+    LAT: np.ndarray,
+    LON: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     New method to load SST and SSH data
     """
@@ -103,20 +111,20 @@ def load_satellite_data(TIME, LAT, LON):
 
 
 def load_satellite_data_for_dataset(
-    TIME,
-    LAT,
-    LON,
-    aviso_folder,
-    sst_folder,
-    sss_folder,
-    min_lat,
-    max_lat,
-    min_lon,
-    max_lon,
-    ex_lat,
-    ex_lon,
-    debug=False,
-):
+    TIME: list[datetime],
+    LAT: np.ndarray,
+    LON: np.ndarray,
+    aviso_folder: str,
+    sst_folder: str,
+    sss_folder: str,
+    min_lat: float,
+    max_lat: float,
+    min_lon: float,
+    max_lon: float,
+    ex_lat: float,
+    ex_lon: float,
+    debug: bool = False,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Load Sea Surface Temperature (SST), Sea Surface Salinity (SSS), and Sea Surface Height (SSH) data.
 

@@ -45,7 +45,11 @@ class WeightedMSELoss(nn.Module):
         return loss
 
 
-def genWeightedMSELoss(n_components, device, weights):  # min test loss ~ 2
+def genWeightedMSELoss(
+    n_components: int,
+    device: torch.device,
+    weights: np.ndarray,
+) -> WeightedMSELoss:
     # Normalizing weights so they sum up to 1
     normalized_weights = weights / np.sum(weights)
     return WeightedMSELoss(normalized_weights, device)

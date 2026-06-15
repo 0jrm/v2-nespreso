@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-def plot_coefficients_heatmap(beta, feature_names, title, normalize=True, threshold=1e-4):
+def plot_coefficients_heatmap(
+    beta: Any,
+    feature_names: list[str],
+    title: str,
+    normalize: bool = True,
+    threshold: float = 1e-4,
+) -> None:
     """
     Plots a heatmap of regression coefficients with optional per-PC normalization and thresholding.
 

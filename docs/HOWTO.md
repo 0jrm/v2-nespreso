@@ -1,9 +1,13 @@
 # HOWTO — NeSPReSO rework
 
+> **Alpha release (`0.1.0a1`).** The modular package reproduces GoM monolith
+> behavior; use `experiments/run_all.py` or `python -m nespreso train` as the
+> forward entrypoints. See `CHANGELOG.md` and `ARCHITECTURE.md`.
+
 ## Install (HPC or dev)
 
 ```bash
-cd rework
+cd /unity/g2/jmiranda/v2-nespreso
 pip install -e ".[dev]"
 ```
 
@@ -80,13 +84,29 @@ python -m nespreso download sss --output /path/SSS --start 2014-01-01 --end 2014
 
 Credentials: CMEMS via `~/.netrc` or copernicusmarine login; AVISO motuclient uses netrc `AVISO` host.
 
-## Run the legacy monolith directly
+## Run the full pipeline
 
-Still supported for full analysis/plotting pipeline:
+Training plus all post-training validation experiments:
+
+```bash
+python experiments/run_all.py --config configs/default.yaml
+```
+
+Training only:
+
+```bash
+python -m nespreso train --config configs/default.yaml
+```
+
+### Deprecated monolith alias
+
+Still works but emits `DeprecationWarning`:
 
 ```bash
 python singleFileModel_SAT_stats4verticalProj_meeting20260203.py
 ```
+
+Frozen source: `legacy/monolith/singleFileModel_SAT_stats4verticalProj_meeting20260203.py`.
 
 ## Verification
 

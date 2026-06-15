@@ -5,12 +5,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
 
 if TYPE_CHECKING:
     from torch.utils.tensorboard import SummaryWriter
 
 
-def evaluate_model(model, dataloader, criterion, device):
+def evaluate_model(
+    model: nn.Module,
+    dataloader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+) -> float:
     """Evaluate the model on the provided data with CUDA support."""
     model.eval()
     running_loss = 0.0
@@ -32,17 +39,17 @@ def evaluate_model(model, dataloader, criterion, device):
 
 
 def train_model(
-    model,
-    train_loader,
-    val_loader,
-    criterion,
-    optimizer,
-    device,
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    criterion: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
     epochs: int = 100,
     patience: int = 10,
     summary_writer: SummaryWriter | None = None,
     trajectory: list[dict[str, float]] | None = None,
-):
+) -> nn.Module:
     """
     Train the model with early stopping and CUDA support.
 

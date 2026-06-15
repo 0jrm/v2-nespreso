@@ -5,10 +5,17 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
+from matplotlib.axes import Axes
 
 def calculate_average_in_bin(
-    lon_bins, lat_bins, lon_val, lat_val, bias_values, dpt_range=np.arange(0, 1801), is_rmse=True
-):
+    lon_bins: np.ndarray,
+    lat_bins: np.ndarray,
+    lon_val: np.ndarray,
+    lat_val: np.ndarray,
+    bias_values: np.ndarray,
+    dpt_range: np.ndarray = np.arange(0, 1801),
+    is_rmse: bool = True,
+) -> tuple[np.ndarray, np.ndarray]:
     # dpt_min, dpt_max = dpt_range
     avg_rmse_grid = np.zeros((len(lat_bins) - 1, len(lon_bins) - 1))
     num_prof_grid = np.zeros((len(lat_bins) - 1, len(lon_bins) - 1))
@@ -41,7 +48,14 @@ def calculate_average_in_bin(
         return avg_rmse_grid, num_prof_grid
 
 
-def plot_bin_map(lon_bins, lat_bins, avg_rmse_nn, num_prof, title_prefix, variable_plotted):
+def plot_bin_map(
+    lon_bins: np.ndarray,
+    lat_bins: np.ndarray,
+    avg_rmse_nn: np.ndarray,
+    num_prof: np.ndarray,
+    title_prefix: str,
+    variable_plotted: str,
+) -> None:
     # Calculate centers of the bins
     lon_centers = (lon_bins[:-1] + lon_bins[1:]) / 2
     lat_centers = (lat_bins[:-1] + lat_bins[1:]) / 2
@@ -105,7 +119,14 @@ def plot_bin_map(lon_bins, lat_bins, avg_rmse_nn, num_prof, title_prefix, variab
     plt.show()
 
 
-def plot_rmse_on_ax(ax, lon_centers, lat_centers, avg_rmse_grid, num_prof, title):
+def plot_rmse_on_ax(
+    ax: Axes,
+    lon_centers: np.ndarray,
+    lat_centers: np.ndarray,
+    avg_rmse_grid: np.ndarray,
+    num_prof: np.ndarray,
+    title: str,
+) -> None:
     ax.set_extent([-99, -81, 18, 30])  # Set to your area of interest
     ax.coastlines()
 
@@ -141,8 +162,14 @@ def plot_rmse_on_ax(ax, lon_centers, lat_centers, avg_rmse_grid, num_prof, title
 
 
 def plot_comparison_maps(
-    lon_centers, lat_centers, avg_var_nn, avg_var_compare, title_prefix, name_compare, variable_name="RMSE"
-):
+    lon_centers: np.ndarray,
+    lat_centers: np.ndarray,
+    avg_var_nn: np.ndarray,
+    avg_var_compare: np.ndarray,
+    title_prefix: str,
+    name_compare: str,
+    variable_name: str = "RMSE",
+) -> None:
     # Calculate the difference
     avg_var_diff = np.abs(avg_var_nn) - np.abs(avg_var_compare)
 
@@ -234,18 +261,18 @@ def plot_comparison_maps(
 
 
 def plot_residual_profiles_for_top_bins(
-    lon_bins,
-    lat_bins,
-    lon_val,
-    lat_val,
-    nn_profiles,
-    avg_rmse_grid,
-    num_prof_grid,
-    param,
-    min_depth,
-    max_depth,
-    top_n=9,
-):
+    lon_bins: np.ndarray,
+    lat_bins: np.ndarray,
+    lon_val: np.ndarray,
+    lat_val: np.ndarray,
+    nn_profiles: np.ndarray,
+    avg_rmse_grid: np.ndarray,
+    num_prof_grid: np.ndarray,
+    param: str,
+    min_depth: float,
+    max_depth: float,
+    top_n: int = 9,
+) -> None:
     """
     Plots residual profiles for the top bins with the highest number of profiles.
 

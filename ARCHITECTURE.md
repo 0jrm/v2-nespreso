@@ -1,5 +1,7 @@
 # NeSPReSO architecture
 
+**Release:** `0.1.0a1` (alpha) — see `CHANGELOG.md`.
+
 Modular refactor of the NeSPReSO research monolith into the installable `nespreso`
 package. The frozen monolith relic lives under `legacy/monolith/`; the forward
 pipeline is `experiments/run_all.py` (repo-root filename is a deprecation shim).

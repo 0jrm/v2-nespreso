@@ -1,6 +1,9 @@
 """GEM baseline profile fitting and evaluation."""
 
+from __future__ import annotations
+
 import time
+from typing import Any
 
 import numpy as np
 from numpy.polynomial.polynomial import Polynomial
@@ -9,7 +12,12 @@ from scipy.stats import linregress
 from nespreso.utils.time import datenum_to_datetime
 
 
-def calc_gem(dataset, ignore_indices, degree=7, sat_ssh=False):
+def calc_gem(
+    dataset: Any,
+    ignore_indices: np.ndarray | list[int],
+    degree: int = 7,
+    sat_ssh: bool = False,
+) -> None:
     """
     Calculates this dataset's polyfits for the GEM profiles for each month.
 
@@ -83,7 +91,11 @@ def calc_gem(dataset, ignore_indices, degree=7, sat_ssh=False):
     return
 
 
-def get_gem_profiles(dataset, indices, sat_ssh=True):
+def get_gem_profiles(
+    dataset: Any,
+    indices: np.ndarray | list[int],
+    sat_ssh: bool = True,
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Generates the GEM profiles for the given indices, month by month.
 
