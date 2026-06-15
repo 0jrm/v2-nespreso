@@ -15,14 +15,14 @@ Branch:
 Recent commits:
 
 ```text
-ee2406c refactor(viz-coefficients): extract coefficient heatmap from monolith
-7f56846 test(viz-coefficients): pin coefficient heatmap with Agg goldens
-81c979a refactor(viz-fields): extract glider field plot helpers from monolith
-72fd70c test(viz-fields): pin glider field plot helpers with Agg goldens
-cb90e99 docs(handoff): record Phase 7 viz extraction and verification
+4fdd9e9 refactor(analysis): extract hoisted __main__ helpers into analysis package
+c04d560 test(analysis): pin hoisted __main__ comparison helpers
+c20e21f docs(handoff): record Phase 7 fields and coefficients extraction
 ```
 
-## Phase 7 — in progress (viz helpers extracted; `__main__` orchestration remains)
+## Phase 7 — in progress (viz + first analysis helpers extracted)
+
+### Viz (complete)
 
 Per `phase7.txt`, all plotting helpers are now under `src/nespreso/viz/`:
 
@@ -33,20 +33,28 @@ Per `phase7.txt`, all plotting helpers are now under `src/nespreso/viz/`:
 | Fields | `src/nespreso/viz/fields.py` | `plot_field`, `plot_field_subplot` |
 | Coefficients | `src/nespreso/viz/coefficients.py` | `plot_coefficients_heatmap` |
 
-Monolith re-exports all symbols. `plt.show` / file writes remain at rendering edges.
+### Analysis (first chunk)
+
+| Module | Path | Contents |
+|---|---|---|
+| Glider | `src/nespreso/analysis/glider.py` | `get_glider_predictions`, `bin_data` |
+| Correlation | `src/nespreso/analysis/correlation.py` | `calculate_correlation` |
+| Residuals | `src/nespreso/analysis/residuals.py` | `compute_profile_residual`, `compute_depth_rmse_bias` |
+| Comparison | `src/nespreso/analysis/comparison.py` | `isop_depth_indices`, `default_depth_intervals`, `compute_season_masked_depth_rmse_bias`, `compute_depth_interval_metrics` |
+
+Monolith re-exports all symbols. `__main__` now calls the hoisted helpers for NN/GEM/MLR/ISOP depth-interval tables, seasonal RMSE/bias, and glider prediction paths.
 
 ### Pin tests added
 
-- `tests/test_viz.py` — profiles/maps synthetic golden pins (Agg backend)
-- `tests/test_viz_fields.py` — glider field plot artifact pins (`seed=200`)
-- `tests/test_viz_coefficients.py` — coefficient heatmap artifact pins (`seed=300`)
-- `tests/golden/viz_maps_synthetic.json`, `viz_profiles_synthetic.json`, `viz_plot_artifacts.json`
-- `tests/golden/viz_fields_synthetic.json`, `viz_coefficients_synthetic.json`
+- `tests/test_viz.py`, `tests/test_viz_fields.py`, `tests/test_viz_coefficients.py` — viz golden pins
+- `tests/test_analysis.py` — analysis golden pins (seeds `401`–`404`)
+- `tests/golden/analysis_synthetic.json`
 
 ### Needs human review
 
 - `calculate_bias` still references module-level `min_depth` / `max_depth` globals (unused `depths` variable preserved verbatim). Pin tests set these on `nespreso.viz.profiles` before calling through the monolith re-export.
 - `plot_field` is defined and re-exported but unused in the current `__main__` block (only `plot_field_subplot` is called for glider crossings).
+- Nested `get_glider_predictions` ignored its `model` argument and always called outer `trained_model`; hoisted version uses the `model` parameter (call sites pass `trained_model`, so numerics are unchanged). `loader` remains an unused parameter (preserved verbatim).
 
 ## Phase 6 — complete
 
@@ -111,7 +119,7 @@ Dead nested `inverse_transform` in the main block (~1898) was **removed**.
 - `tests/golden/pca_inverse_profile_0.json`
 - `tests/golden/pca_inverse_api_profile_0.json`
 
-## Verification (Phase 7 fields + coefficients extraction)
+## Verification (Phase 7 analysis extraction)
 
 ```bash
 python -m compileall src singleFileModel_SAT_stats4verticalProj_meeting20260203.py
@@ -119,26 +127,30 @@ python -m compileall src singleFileModel_SAT_stats4verticalProj_meeting20260203.
 pytest tests/test_smoke.py tests/test_config_paths.py tests/test_prepare_inputs.py \
   tests/test_satellite_loader.py tests/test_argo_loader.py tests/test_splits.py \
   tests/test_pca_inverse.py tests/test_losses.py tests/test_inference.py \
-  tests/test_viz.py tests/test_viz_fields.py tests/test_viz_coefficients.py -q
+  tests/test_viz.py tests/test_viz_fields.py tests/test_viz_coefficients.py \
+  tests/test_analysis.py -q
 
 srun --ntasks=1 --cpus-per-task=8 --gres=gpu:1 \
   pytest tests/test_characterization.py tests/test_inference.py \
   -m requires_unity --run-unity -q
 ```
 
-Last run: all passed (45 unit tests, 2 skipped; sklearn unpickle-version warnings only; goldens at `1e-6`).
+Last run: all passed (52 unit tests, 2 skipped; sklearn unpickle-version warnings only; goldens at `1e-6`).
 
-## Next sprint: Phase 7 remainder — `__main__` analysis orchestration
+## Next sprint: Phase 7/8 remainder — more `__main__` helpers and experiments split
 
-High-risk monolith blocks still in `singleFileModel_SAT_stats4verticalProj_meeting20260203.py`:
+High-risk monolith blocks still nested in `__main__`:
 
-- Most of the `__main__` post-training analysis block (glider crossings, RMSE maps, MLR/ISOP comparisons, correlation stats)
-- Nested helpers still inside `__main__` (`get_glider_predictions`, `bin_data`, `calculate_correlation`, `calculate_distances`, `datenums_to_datetimes`, etc.)
+- `haversine`, `calculate_distances`, `datenums_to_datetimes`
+- `prepare_features`, `fit_pcs_regression_exact_gpu`, `predict_pcs_exact_gpu`
+- Steric-height / depth-bin statistics blocks
+- `average_depth`, `histogram_available_depths`, `equivalent_average_statistic`
+- Vertical metrics analysis (NeSPReSO 1.0 vs 1.1 density/stability)
 
 Recommended sequence:
 
-1. Inventory pure-compute helpers in `__main__` that can move to library modules without changing numerics.
-2. Peel orchestration toward `experiments/` or `runner` hooks; keep side effects at edges.
+1. Pin and hoist the next pure-compute helper cluster (geo/time or MLR baseline).
+2. Continue peeling `__main__` orchestration toward `experiments/` per `phase8.txt`.
 3. Leave the monolith trunk importable until Phase 9 retirement.
 
 ## Prior accepted HEAD (Phase 4)
