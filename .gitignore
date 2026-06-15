@@ -24,7 +24,9 @@ wheels/
 *.nc
 *.pth
 *.pkl
-tests/golden/
+tests/golden/*.pth
+tests/golden/*.pkl
+tests/golden/*.nc
 .env
 .venv/
 venv/

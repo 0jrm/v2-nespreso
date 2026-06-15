@@ -41,6 +41,7 @@ def train_model(
     epochs: int = 100,
     patience: int = 10,
     summary_writer: SummaryWriter | None = None,
+    trajectory: list[dict[str, float]] | None = None,
 ):
     """
     Train the model with early stopping and CUDA support.
@@ -76,6 +77,15 @@ def train_model(
 
         avg_train_loss = running_train_loss / len(train_loader)
         avg_val_loss = evaluate_model(model, val_loader, criterion, device)
+
+        if trajectory is not None:
+            trajectory.append(
+                {
+                    "epoch": float(epoch),
+                    "train_loss": avg_train_loss,
+                    "val_loss": avg_val_loss,
+                }
+            )
 
         if summary_writer is not None:
             summary_writer.add_scalar("loss/train", avg_train_loss, epoch)

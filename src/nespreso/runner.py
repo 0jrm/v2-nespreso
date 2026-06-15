@@ -34,6 +34,17 @@ def _load_monolith():
     return module
 
 
+def _load_dataset_pickle(monolith_module, pickle_path: str | Path):
+    """Unpickle dataset saved when the monolith was run as ``__main__``."""
+    real_main = sys.modules["__main__"]
+    sys.modules["__main__"] = monolith_module
+    try:
+        with open(pickle_path, "rb") as file:
+            return pickle.load(file)
+    finally:
+        sys.modules["__main__"] = real_main
+
+
 def apply_runtime_globals(m, cfg: AppConfig) -> None:
     """Mirror module-level flags from config (backward compat for monolith)."""
     m.load_trained_model = cfg.runtime.load_trained_model
@@ -68,15 +79,14 @@ def run_training(cfg: AppConfig) -> Path | None:
     bbox = cfg.bbox
 
     if os.path.exists(dataset_pickle_file) and cfg.runtime.load_dataset_file:
-        with open(dataset_pickle_file, "rb") as file:
-            data = pickle.load(file)
-            full_dataset = data["full_dataset"]
-            full_dataset.n_components = model_cfg.n_components
-            full_dataset.min_depth = model_cfg.min_depth
-            full_dataset.max_depth = model_cfg.max_depth
-            full_dataset.input_params = input_params
-            if not cfg.runtime.load_trained_model:
-                full_dataset.reload()
+        data = _load_dataset_pickle(m, dataset_pickle_file)
+        full_dataset = data["full_dataset"]
+        full_dataset.n_components = model_cfg.n_components
+        full_dataset.min_depth = model_cfg.min_depth
+        full_dataset.max_depth = model_cfg.max_depth
+        full_dataset.input_params = input_params
+        if not cfg.runtime.load_trained_model:
+            full_dataset.reload()
     else:
         full_dataset = m.TemperatureSalinityDataset(
             n_components=model_cfg.n_components,

@@ -832,6 +832,9 @@ class IndexedSubset(Subset):
         original_idx = self.indices[idx]
         return inputs, profiles, original_idx
 
+    def __getitems__(self, indices):
+        return [self.__getitem__(idx) for idx in indices]
+
 
 def split_dataset(dataset, train_size, val_size, test_size, batch_size=32, use_batches=True):
     """

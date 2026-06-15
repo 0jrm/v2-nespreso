@@ -37,3 +37,11 @@ def fitted_pca_pair(synthetic_ts_profiles):
     temp_pcs = pca_temp.fit_transform(temp.T)
     sal_pcs = pca_sal.fit_transform(sal.T)
     return pca_temp, pca_sal, temp_pcs, sal_pcs, n_components
+
+
+def pytest_addoption(parser):
+    parser.addoption("--run-unity", action="store_true", help="Run /unity characterization tests")
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "requires_unity: needs /unity data on HPC")
