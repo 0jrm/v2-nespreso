@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from calendar import monthrange
+from collections.abc import Iterable
 from pathlib import Path
 
 
@@ -17,7 +18,7 @@ def download_aviso(
     max_lat: float,
     username: str | None = None,
     password: str | None = None,
-    months: range | None = None,
+    months: Iterable[int] | None = None,
 ) -> None:
     """
     Download AVISO SSH monthly files year-by-year (ported from eoas_pyutils).

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "nespreso"
 version = "0.1.0a1"
 description = "NeSPReSO ocean subsurface field reconstruction pipeline"
-readme = "docs/HOWTO.md"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "numpy<2",

@@ -1,7 +1,0 @@
-Phase 6. Extract the training and inference engine.
-- src/<pkg>/train.py: train_model (~802-870), evaluate_model (~871-904).
-- src/<pkg>/inference.py: get_predictions (~905-932), get_inputs (~933-955,
-  dedupe vs the dataset method), predict_with_numpy (~956-976), and the legacy
-  TorchScript path (get_predictions_torchscript, inverse_transform_api,
-  load_all_models). Paths come from config.
-Verify a short training run reproduces golden loss trajectory within tolerance.

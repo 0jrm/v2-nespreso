@@ -1,8 +1,0 @@
-Phase 3. Extract data ingress.
-- src/<pkg>/io/satellite.py: load_satellite_data (lines ~102-183) and
-  prepare_inputs (~184-244), plus the satellite-loading method body from the
-  dataset (_load_satellite_data, ~333). Take folders from Paths; no hardcoding.
-- src/<pkg>/io/argo.py: the ARGO .mat loading logic from the dataset __init__.
-Keep functions pure (return arrays/structures; no plotting). Add type hints and
-docstrings noting units and coordinate conventions. Verify shapes against the
-characterization fixtures. Do not change the datenum/satellite-alignment logic.

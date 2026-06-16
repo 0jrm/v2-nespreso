@@ -139,25 +139,7 @@ def _prepare_data_and_loaders(cfg: AppConfig) -> dict[str, Any]:
         )
         os.makedirs(os.path.dirname(dataset_pickle_file), exist_ok=True)
         with open(dataset_pickle_file, "wb") as file:
-            pickle.dump(
-                {
-                    "min_depth": model_cfg.min_depth,
-                    "max_depth": model_cfg.max_depth,
-                    "epochs": model_cfg.epochs,
-                    "patience": model_cfg.patience,
-                    "n_components": model_cfg.n_components,
-                    "batch_size": model_cfg.batch_size,
-                    "learning_rate": model_cfg.learning_rate,
-                    "dropout_prob": model_cfg.dropout_prob,
-                    "layers_config": list(model_cfg.layers_config),
-                    "input_params": input_params,
-                    "train_size": model_cfg.train_size,
-                    "val_size": model_cfg.val_size,
-                    "test_size": model_cfg.test_size,
-                    "full_dataset": full_dataset,
-                },
-                file,
-            )
+            pickle.dump({"full_dataset": full_dataset}, file)
 
     train_dataset, val_dataset, test_dataset = split_dataset(
         full_dataset,
